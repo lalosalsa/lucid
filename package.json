@@ -1,0 +1,18 @@
+{
+  "name": "lucid-notes",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Think out loud, get it back sharp — voice-to-structured-note capture powered by Claude.",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.70.0",
+    "dotenv": "^16.4.5",
+    "express": "^4.21.2"
+  }
+}
