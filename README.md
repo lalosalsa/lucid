@@ -50,10 +50,31 @@ Check `http://localhost:3000/api/health` — `keyConfigured` should be `true`.
 
 ## Deploying
 
-Any host that runs Node works (Render, Railway, Fly.io, a VM, etc.):
+### Netlify (recommended — zero config)
+
+`netlify.toml` already sets the publish directory, functions, and routing, so a
+connected repo deploys with no manual build settings. The refine endpoint runs
+as a serverless function (`netlify/functions/`); the same code serves it locally
+via Express.
+
+**The only step you must do by hand** — because it's a secret and can't live in
+the repo:
+
+1. In Netlify: **Site settings → Environment variables → Add a variable**
+2. Key `ANTHROPIC_API_KEY`, value your key from https://console.anthropic.com/
+3. **Trigger a redeploy** (Deploys → Trigger deploy) so the key takes effect.
+
+That's it. (Optional: add `ANTHROPIC_MODEL` = `claude-opus-5` for higher quality.)
+
+Verify at `https://<your-site>.netlify.app/api/health` — `keyConfigured` should
+be `true`. Netlify serves over HTTPS automatically, so the mic works.
+
+> Without the key the site still loads and captures notes — it just falls back
+> to a local "quick format" instead of AI refinement until the key is set.
+
+### Any Node host (Render, Railway, Fly.io, a VM…)
 
 - Start command: `npm start`
-- Set `ANTHROPIC_API_KEY` as an environment variable in the host's dashboard
-  (do **not** commit `.env`).
-- The server serves both the UI and the API on the same port, so no extra
-  routing is needed. Put it behind HTTPS — the mic requires a secure context.
+- Set `ANTHROPIC_API_KEY` in the host's environment (don't commit `.env`).
+- The server serves both the UI and the API on one port. Put it behind HTTPS —
+  the mic requires a secure context.

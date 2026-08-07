@@ -1,0 +1,25 @@
+# Netlify config — everything needed to build and serve is here, so a connected
+# repo deploys with no manual dashboard settings. The ONE thing you must set is
+# the ANTHROPIC_API_KEY environment variable (Site settings → Environment
+# variables) — it's a secret and can't live in the repo.
+
+[build]
+  publish = "public"
+  functions = "netlify/functions"
+
+[build.environment]
+  NODE_VERSION = "20"
+
+[functions]
+  node_bundler = "esbuild"
+
+# Map the app's API calls to the serverless functions.
+[[redirects]]
+  from = "/api/refine"
+  to = "/.netlify/functions/refine"
+  status = 200
+
+[[redirects]]
+  from = "/api/health"
+  to = "/.netlify/functions/health"
+  status = 200
