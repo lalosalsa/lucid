@@ -1,17 +1,21 @@
 # Lucid Notes
 
-Think out loud, get it back sharp. Speak or type a rough thought and Claude
-reshapes it into a clean note — title, thesis, bullet points, and next actions —
-grouped into smart folders with the tasks pulled out for you.
+Think out loud, get it back sharp. Speak or type a rough thought and it comes
+back as a clean note — title, thesis, bullet points, and next actions — grouped
+into smart folders with the tasks pulled out for you.
+
+**How it works:** the browser records your voice → **Gemini Flash** transcribes
+it → **Claude** structures it into a note. Typing skips the first two steps.
 
 ## Why there's a backend
 
-The app is a single-page mobile UI (`public/index.html`). The one thing it
-can't do in the browser is call Claude: an API key in client-side code would be
-visible to everyone, and browsers can't call the Anthropic API directly. So a
-tiny Node server (`server.js`) holds the key and exposes one endpoint,
-`POST /api/refine`, that the app calls. If that endpoint is unavailable, the app
-falls back to a local "quick format" so it never hard-fails.
+The app is a single-page mobile UI (`public/index.html`). API keys can't live
+in client-side code (they'd be visible to everyone), so a small backend holds
+them and exposes two endpoints the app calls: `POST /api/transcribe` (Gemini
+speech-to-text) and `POST /api/refine` (Claude note structuring). Locally
+that's `server.js`; on Netlify the same logic runs as serverless functions.
+If refinement is unavailable the app falls back to a local "quick format" so
+it never hard-fails; if transcription is unavailable it offers the text box.
 
 ## Run it locally
 
@@ -57,20 +61,25 @@ connected repo deploys with no manual build settings. The refine endpoint runs
 as a serverless function (`netlify/functions/`); the same code serves it locally
 via Express.
 
-**The only step you must do by hand** — because it's a secret and can't live in
-the repo:
+**The only steps you must do by hand** — because keys are secrets and can't
+live in the repo:
 
 1. In Netlify: **Site settings → Environment variables → Add a variable**
-2. Key `ANTHROPIC_API_KEY`, value your key from https://console.anthropic.com/
-3. **Trigger a redeploy** (Deploys → Trigger deploy) so the key takes effect.
+2. Add both keys:
+   - `ANTHROPIC_API_KEY` — from https://console.anthropic.com/ (note refinement)
+   - `GEMINI_API_KEY` — from https://aistudio.google.com/apikey (voice transcription)
+3. **Trigger a redeploy** (Deploys → Trigger deploy) so the keys take effect.
 
-That's it. (Optional: add `ANTHROPIC_MODEL` = `claude-opus-5` for higher quality.)
+That's it. (Optional: `ANTHROPIC_MODEL` = `claude-opus-5` for higher-quality
+notes; `GEMINI_MODEL` to change the transcription model.)
 
-Verify at `https://<your-site>.netlify.app/api/health` — `keyConfigured` should
-be `true`. Netlify serves over HTTPS automatically, so the mic works.
+Verify at `https://<your-site>.netlify.app/api/health` — `keyConfigured` and
+`geminiKeyConfigured` should both be `true`. Netlify serves over HTTPS
+automatically, so the mic works.
 
-> Without the key the site still loads and captures notes — it just falls back
-> to a local "quick format" instead of AI refinement until the key is set.
+> Without the keys the site still loads and captures notes — typing always
+> works, and refinement falls back to a local "quick format" until the keys
+> are set.
 
 ### Any Node host (Render, Railway, Fly.io, a VM…)
 

@@ -13,10 +13,25 @@ require("dotenv").config();
 const path = require("path");
 const express = require("express");
 const { LENSES, MODEL, refine } = require("./lib/refine");
+const { transcribe, GEMINI_MODEL } = require("./lib/transcribe");
 
 const app = express();
-app.use(express.json({ limit: "1mb" }));
+// Audio (base64 WAV) can be a few MB; give the body parser room.
+app.use(express.json({ limit: "12mb" }));
 app.use(express.static(path.join(__dirname, "public")));
+
+app.post("/api/transcribe", async (req, res) => {
+  const audio = req.body && typeof req.body.audio === "string" ? req.body.audio : "";
+  const mime = req.body && typeof req.body.mime === "string" ? req.body.mime : "audio/wav";
+  if (!audio) return res.status(400).json({ error: "no_audio" });
+  try {
+    return res.json({ text: await transcribe(audio, mime) });
+  } catch (err) {
+    if (err && err.status === 401) console.error("[transcribe] Gemini auth failed — check GEMINI_API_KEY.");
+    else console.error("[transcribe] failed:", (err && err.message) || err);
+    return res.status(502).json({ error: "transcribe_failed" });
+  }
+});
 
 app.post("/api/refine", async (req, res) => {
   const raw = req.body && typeof req.body.raw === "string" ? req.body.raw : "";
@@ -34,7 +49,13 @@ app.post("/api/refine", async (req, res) => {
 });
 
 app.get("/api/health", (req, res) => {
-  res.json({ ok: true, model: MODEL, keyConfigured: !!process.env.ANTHROPIC_API_KEY });
+  res.json({
+    ok: true,
+    model: MODEL,
+    keyConfigured: !!process.env.ANTHROPIC_API_KEY,
+    sttModel: GEMINI_MODEL,
+    geminiKeyConfigured: !!process.env.GEMINI_API_KEY,
+  });
 });
 
 const PORT = process.env.PORT || 3000;

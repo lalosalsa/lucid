@@ -596,16 +596,20 @@ body{font-family:'Inter',system-ui,sans-serif;background:radial-gradient(130% 55
     if(ri){ri.focus();var save=function(){var v=ri.value.trim();if(v){f.name=v;saveNotes();}renamingFolder=false;renderFolderDetail();};document.getElementById("renSave").onclick=save;document.getElementById("renCancel").onclick=function(){renamingFolder=false;renderFolderDetail();};ri.onkeydown=function(e){if(e.key==="Enter")save();else if(e.key==="Escape"){renamingFolder=false;renderFolderDetail();}};}
   }
   /* ---- capture ---- */
-  var rec=null,finalText="",interimText="",capPhase="idle";
-  var SR=window.SpeechRecognition||window.webkitSpeechRecognition;
-  function openCapture(){capPhase=SR?"idle":"type";finalText="";interimText="";renderCapture();}
-  function closeModals(){stopSpeaking();document.getElementById("modals").innerHTML="";}
+  /* Voice capture records audio in-browser (works in every browser), then the
+     backend transcribes it via Gemini. This avoids the browser SpeechRecognition
+     service that some browsers disable. Typing is always available as a fallback. */
+  var capPhase="idle",refMsg="",recorder=null,capTimer=null,capStart=0;
+  var MAXSEC=90;
+  var CANREC=!!(navigator.mediaDevices&&navigator.mediaDevices.getUserMedia&&(window.AudioContext||window.webkitAudioContext));
+  function openCapture(){capPhase=CANREC?"idle":"type";refMsg="";renderCapture();}
+  function closeModals(){stopSpeaking();stopTimer();if(recorder){try{recorder.cancel();}catch(e){}recorder=null;}document.getElementById("modals").innerHTML="";}
   function renderCapture(){
     var body="";
     if(capPhase==="idle"){body='<div class="cap-idle"><button class="rec-btn" id="recBtn">'+I.mic(30)+'</button><p class="cap-hint">Tap and start talking</p><button class="text-alt" id="toType">'+I.keyboard(14)+'Type instead</button></div>';}
-    else if(capPhase==="listening"){var t=(finalText+interimText).trim();body='<div class="cap-live"><div class="live-transcript" id="liveT"><p>'+(t?esc(finalText)+'<span class="interim">'+esc(interimText)+'</span>':'<span class="ghost">Listening\u2026 start speaking.</span>')+'</p></div><div class="bars">'+bars()+'</div><button class="stop-btn" id="stopBtn">'+I.square(16)+'Stop &amp; refine</button></div>';}
-    else if(capPhase==="type"){body='<div class="cap-type"><textarea id="typed" rows="5" placeholder="Dump the rough thought here\u2026"></textarea><div class="type-row">'+(SR?'<button class="text-alt" id="toVoice">'+I.mic(14)+'Use voice</button>':'<span></span>')+'<button class="primary-btn" id="refineTyped" disabled>'+I.spark(15)+'Refine</button></div></div>';}
-    else if(capPhase==="refining"){body='<div class="cap-refining"><div class="orbit">'+I.spark(22)+'</div><div class="refine-lines"><div class="shimmer-line"></div><div class="shimmer-line"></div><div class="shimmer-line short"></div></div><p class="cap-hint dim">Structuring your thought\u2026</p></div>';}
+    else if(capPhase==="listening"){body='<div class="cap-live"><div class="live-transcript" id="liveT" style="display:flex;align-items:center;justify-content:center"><p style="text-align:center"><span class="ghost">Listening\u2026 speak now.</span><br><span id="recTime" style="font-family:\'JetBrains Mono\',monospace;font-size:15px;color:var(--accent)">0:00</span></p></div><div class="bars">'+bars()+'</div><button class="stop-btn" id="stopBtn">'+I.square(16)+'Stop &amp; refine</button></div>';}
+    else if(capPhase==="type"){body='<div class="cap-type"><textarea id="typed" rows="5" placeholder="Dump the rough thought here\u2026"></textarea><div class="type-row">'+(CANREC?'<button class="text-alt" id="toVoice">'+I.mic(14)+'Use voice</button>':'<span></span>')+'<button class="primary-btn" id="refineTyped" disabled>'+I.spark(15)+'Refine</button></div></div>';}
+    else if(capPhase==="refining"){body='<div class="cap-refining"><div class="orbit">'+I.spark(22)+'</div><div class="refine-lines"><div class="shimmer-line"></div><div class="shimmer-line"></div><div class="shimmer-line short"></div></div><p class="cap-hint dim">'+esc(refMsg||"Structuring your thought\u2026")+'</p></div>';}
     var lensBar=capPhase==="refining"?"":'<div class="sheet-lens">'+Object.keys(LENSES).map(function(k){return '<button class="lens-seg'+(k===lens?" on":"")+'" data-slens="'+k+'">'+LENSES[k].label+'</button>';}).join("")+'</div>';
     var head='<div class="sheet-head"><span class="sheet-title">'+(capPhase==="refining"?"Refining\u2026":"New thought")+'</span>'+(capPhase!=="refining"?'<button class="icon-btn" id="capClose">'+I.x(18)+'</button>':"")+'</div>';
     document.getElementById("modals").innerHTML='<div class="scrim" id="capScrim"><div class="sheet" id="capSheet"><div class="grab"></div>'+head+lensBar+body+'</div></div>';
@@ -616,31 +620,73 @@ body{font-family:'Inter',system-ui,sans-serif;background:radial-gradient(130% 55
     var rb=document.getElementById("recBtn");if(rb)rb.onclick=startRec;
     var tt=document.getElementById("toType");if(tt)tt.onclick=function(){capPhase="type";renderCapture();};
     var tv=document.getElementById("toVoice");if(tv)tv.onclick=function(){capPhase="idle";renderCapture();};
-    var sb=document.getElementById("stopBtn");if(sb)sb.onclick=function(){stopAndRefine();};
-    var ta=document.getElementById("typed");if(ta){ta.focus();var rt=document.getElementById("refineTyped");ta.oninput=function(){rt.disabled=!ta.value.trim();};rt.onclick=function(){if(ta.value.trim())stopAndRefine(ta.value);};}
+    var sb=document.getElementById("stopBtn");if(sb)sb.onclick=function(){stopRecordingGo();};
+    var ta=document.getElementById("typed");if(ta){ta.focus();var rt=document.getElementById("refineTyped");ta.oninput=function(){rt.disabled=!ta.value.trim();};rt.onclick=function(){if(ta.value.trim())finishRefine(ta.value);};}
   }
   function bars(){var s="";for(var i=0;i<9;i++){s+='<span style="animation-delay:'+(i*0.09)+'s"></span>';}return s;}
-  function updateLive(){var el=document.getElementById("liveT");if(!el)return;var t=(finalText+interimText).trim();el.innerHTML=t?'<p>'+esc(finalText)+'<span class="interim">'+esc(interimText)+'</span></p>':'<p><span class="ghost">Listening\u2026 start speaking.</span></p>';el.scrollTop=el.scrollHeight;}
+  function fmtTime(s){return Math.floor(s/60)+":"+("0"+(s%60)).slice(-2);}
+  function startTimer(){capStart=Date.now();stopTimer();capTimer=setInterval(function(){var s=Math.floor((Date.now()-capStart)/1000);var el=document.getElementById("recTime");if(el)el.textContent=fmtTime(s);if(s>=MAXSEC)stopRecordingGo();},250);}
+  function stopTimer(){if(capTimer){clearInterval(capTimer);capTimer=null;}}
   function startRec(){
-    if(!SR){capPhase="type";renderCapture();return;}
-    try{rec=new SR();rec.continuous=true;rec.interimResults=true;rec.lang="en-US";finalText="";interimText="";
-      rec.onresult=function(e){var intr="";for(var i=e.resultIndex;i<e.results.length;i++){var r=e.results[i];if(r.isFinal)finalText+=r[0].transcript+" ";else intr+=r[0].transcript;}interimText=intr;updateLive();};
-      rec.onerror=function(ev){if(ev&&(ev.error==="not-allowed"||ev.error==="service-not-allowed")){capPhase="type";renderCapture();toast("Mic blocked \u2014 type instead");}};
-      rec.onend=function(){};rec.start();capPhase="listening";renderCapture();
-    }catch(e){capPhase="type";renderCapture();}
+    if(!CANREC){capPhase="type";renderCapture();return;}
+    startRecording().then(function(){capPhase="listening";renderCapture();startTimer();})
+    .catch(function(){capPhase="type";renderCapture();toast("Mic blocked \u2014 type instead");});
   }
-  function stopAndRefine(override){
-    if(rec){try{rec.stop();}catch(e){}}
-    var raw=(override!=null?override:(finalText+interimText)).trim();
-    if(!raw){closeModals();return;}
-    capPhase="refining";renderCapture();
-    refine(raw,lens).then(function(r){
+  function stopRecordingGo(){
+    if(!recorder)return;
+    stopTimer();
+    var wav;try{wav=recorder.stop();}catch(e){wav=null;}recorder=null;
+    if(!wav){closeModals();toast("Recording failed \u2014 try again");return;}
+    capPhase="refining";refMsg="Transcribing\u2026";renderCapture();
+    transcribeAudio(wav).then(function(text){
+      if(!text){closeModals();toast("Didn\u2019t catch that \u2014 try again");return;}
+      refMsg="Structuring your thought\u2026";renderCapture();
+      return finishRefine(text);
+    }).catch(function(){capPhase="type";renderCapture();toast("Couldn\u2019t transcribe \u2014 type it");});
+  }
+  function finishRefine(raw){
+    raw=(raw||"").trim();if(!raw){closeModals();return;}
+    capPhase="refining";if(!refMsg)refMsg="Structuring your thought\u2026";renderCapture();
+    return refine(raw,lens).then(function(r){
       var note={id:"n_"+Date.now(),createdAt:Date.now(),lens:lens,raw:raw};
       for(var k in r){note[k]=r[k];}
       normNote(note);
       notes.unshift(note);manualOrder.unshift(note.id);saveNotes();renderApp();closeModals();
       toast(note.offline?"Saved \u00b7 quick format":"Refined & saved");
     });
+  }
+  function transcribeAudio(wavBase64){
+    return fetch("/api/transcribe",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({audio:wavBase64,mime:"audio/wav"})})
+    .then(function(res){if(!res.ok)throw new Error("stt");return res.json();})
+    .then(function(j){return ((j&&j.text)||"").trim();});
+  }
+  function startRecording(){
+    return navigator.mediaDevices.getUserMedia({audio:true}).then(function(stream){
+      var AC=window.AudioContext||window.webkitAudioContext;var ctx=new AC();
+      if(ctx.state==="suspended"&&ctx.resume){ctx.resume();}
+      var source=ctx.createMediaStreamSource(stream);
+      var proc=ctx.createScriptProcessor(4096,1,1);
+      var sink=ctx.createGain();sink.gain.value=0;
+      var chunks=[],total=0,rate=ctx.sampleRate;
+      proc.onaudioprocess=function(e){var d=e.inputBuffer.getChannelData(0);var c=new Float32Array(d.length);c.set(d);chunks.push(c);total+=c.length;};
+      source.connect(proc);proc.connect(sink);sink.connect(ctx.destination);
+      function cleanup(){try{proc.disconnect();}catch(e){}try{source.disconnect();}catch(e){}try{sink.disconnect();}catch(e){}try{stream.getTracks().forEach(function(t){t.stop();});}catch(e){}try{ctx.close();}catch(e){}}
+      recorder={cancel:cleanup,stop:function(){cleanup();return encodeWav(chunks,total,rate);}};
+    });
+  }
+  function encodeWav(chunks,total,rate){
+    var buf=new Float32Array(total),off=0;for(var i=0;i<chunks.length;i++){buf.set(chunks[i],off);off+=chunks[i].length;}
+    var target=16000,samples=rate>target?downsample(buf,rate,target):buf,outRate=rate>target?target:rate;
+    return floatToWavBase64(samples,outRate);
+  }
+  function downsample(buf,inRate,outRate){var ratio=inRate/outRate,len=Math.round(buf.length/ratio),out=new Float32Array(len);for(var i=0;i<len;i++)out[i]=buf[Math.floor(i*ratio)];return out;}
+  function floatToWavBase64(samples,rate){
+    var n=samples.length,ab=new ArrayBuffer(44+n*2),dv=new DataView(ab);
+    function w(o,s){for(var i=0;i<s.length;i++)dv.setUint8(o+i,s.charCodeAt(i));}
+    w(0,"RIFF");dv.setUint32(4,36+n*2,true);w(8,"WAVE");w(12,"fmt ");dv.setUint32(16,16,true);dv.setUint16(20,1,true);dv.setUint16(22,1,true);dv.setUint32(24,rate,true);dv.setUint32(28,rate*2,true);dv.setUint16(32,2,true);dv.setUint16(34,16,true);w(36,"data");dv.setUint32(40,n*2,true);
+    var o2=44;for(var i=0;i<n;i++){var s=Math.max(-1,Math.min(1,samples[i]));dv.setInt16(o2,s<0?s*0x8000:s*0x7FFF,true);o2+=2;}
+    var bytes=new Uint8Array(ab),bin="",CH=0x8000;for(var i=0;i<bytes.length;i+=CH){bin+=String.fromCharCode.apply(null,bytes.subarray(i,i+CH));}
+    return btoa(bin);
   }
 
   /* ---- detail ---- */
