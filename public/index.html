@@ -601,7 +601,7 @@ body{font-family:'Inter',system-ui,sans-serif;background:radial-gradient(130% 55
      service that some browsers disable. Typing is always available as a fallback. */
   var capPhase="idle",refMsg="",recorder=null,capTimer=null,capStart=0;
   var MAXSEC=90;
-  var CANREC=!!(navigator.mediaDevices&&navigator.mediaDevices.getUserMedia&&(window.AudioContext||window.webkitAudioContext));
+  var CANREC=!!(navigator.mediaDevices&&navigator.mediaDevices.getUserMedia&&window.MediaRecorder);
   function openCapture(){capPhase=CANREC?"idle":"type";refMsg="";renderCapture();}
   function closeModals(){stopSpeaking();stopTimer();if(recorder){try{recorder.cancel();}catch(e){}recorder=null;}document.getElementById("modals").innerHTML="";}
   function renderCapture(){
@@ -630,19 +630,29 @@ body{font-family:'Inter',system-ui,sans-serif;background:radial-gradient(130% 55
   function startRec(){
     if(!CANREC){capPhase="type";renderCapture();return;}
     startRecording().then(function(){capPhase="listening";renderCapture();startTimer();})
-    .catch(function(){capPhase="type";renderCapture();toast("Mic blocked \u2014 type instead");});
+    .catch(function(err){
+      console.error("[capture] could not start recording:",err);
+      var denied=err&&(err.name==="NotAllowedError"||err.name==="SecurityError");
+      var missing=err&&(err.name==="NotFoundError"||err.name==="DevicesNotFoundError");
+      capPhase="type";renderCapture();
+      toast(denied?"Mic blocked \u2014 type instead":(missing?"No mic found \u2014 type instead":"Mic unavailable \u2014 type instead"));
+    });
   }
   function stopRecordingGo(){
     if(!recorder)return;
     stopTimer();
-    var wav;try{wav=recorder.stop();}catch(e){wav=null;}recorder=null;
-    if(!wav){closeModals();toast("Recording failed \u2014 try again");return;}
+    var r=recorder;recorder=null;
     capPhase="refining";refMsg="Transcribing\u2026";renderCapture();
-    transcribeAudio(wav).then(function(text){
+    r.stop().then(function(p){return transcribeAudio(p.audio,p.mime);})
+    .then(function(text){
       if(!text){closeModals();toast("Didn\u2019t catch that \u2014 try again");return;}
       refMsg="Structuring your thought\u2026";renderCapture();
       return finishRefine(text);
-    }).catch(function(){capPhase="type";renderCapture();toast("Couldn\u2019t transcribe \u2014 type it");});
+    }).catch(function(err){
+      console.error("[capture] failed:",err);
+      capPhase="type";renderCapture();
+      toast(err&&err.message==="empty_recording"?"No audio captured \u2014 type it":"Couldn\u2019t transcribe \u2014 type it");
+    });
   }
   function finishRefine(raw){
     raw=(raw||"").trim();if(!raw){closeModals();return;}
@@ -655,29 +665,74 @@ body{font-family:'Inter',system-ui,sans-serif;background:radial-gradient(130% 55
       toast(note.offline?"Saved \u00b7 quick format":"Refined & saved");
     });
   }
-  function transcribeAudio(wavBase64){
-    return fetch("/api/transcribe",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({audio:wavBase64,mime:"audio/wav"})})
-    .then(function(res){if(!res.ok)throw new Error("stt");return res.json();})
+  function transcribeAudio(b64,mime){
+    return fetch("/api/transcribe",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({audio:b64,mime:mime||"audio/wav"})})
+    .then(function(res){if(!res.ok)throw new Error("stt_"+res.status);return res.json();})
     .then(function(j){return ((j&&j.text)||"").trim();});
+  }
+  /* Capture with MediaRecorder (broadly supported), then decode and re-encode
+     to 16kHz mono WAV — the format the transcription API reliably accepts.
+     If decoding fails we send the original clip and let the server try it. */
+  function pickMime(){
+    var t=["audio/webm;codecs=opus","audio/webm","audio/ogg;codecs=opus","audio/mp4"];
+    if(!window.MediaRecorder||!MediaRecorder.isTypeSupported)return "";
+    for(var i=0;i<t.length;i++){if(MediaRecorder.isTypeSupported(t[i]))return t[i];}
+    return "";
   }
   function startRecording(){
     return navigator.mediaDevices.getUserMedia({audio:true}).then(function(stream){
-      var AC=window.AudioContext||window.webkitAudioContext;var ctx=new AC();
-      if(ctx.state==="suspended"&&ctx.resume){ctx.resume();}
-      var source=ctx.createMediaStreamSource(stream);
-      var proc=ctx.createScriptProcessor(4096,1,1);
-      var sink=ctx.createGain();sink.gain.value=0;
-      var chunks=[],total=0,rate=ctx.sampleRate;
-      proc.onaudioprocess=function(e){var d=e.inputBuffer.getChannelData(0);var c=new Float32Array(d.length);c.set(d);chunks.push(c);total+=c.length;};
-      source.connect(proc);proc.connect(sink);sink.connect(ctx.destination);
-      function cleanup(){try{proc.disconnect();}catch(e){}try{source.disconnect();}catch(e){}try{sink.disconnect();}catch(e){}try{stream.getTracks().forEach(function(t){t.stop();});}catch(e){}try{ctx.close();}catch(e){}}
-      recorder={cancel:cleanup,stop:function(){cleanup();return encodeWav(chunks,total,rate);}};
+      var chunks=[],mime=pickMime(),mr;
+      try{mr=mime?new MediaRecorder(stream,{mimeType:mime}):new MediaRecorder(stream);}
+      catch(e){mr=new MediaRecorder(stream);}
+      mr.ondataavailable=function(e){if(e.data&&e.data.size>0)chunks.push(e.data);};
+      mr.start(250);
+      function stopTracks(){try{stream.getTracks().forEach(function(t){t.stop();});}catch(e){}}
+      recorder={
+        cancel:function(){try{if(mr.state!=="inactive")mr.stop();}catch(e){}stopTracks();},
+        stop:function(){
+          return new Promise(function(resolve,reject){
+            mr.onerror=function(e){stopTracks();reject(new Error("recorder_error"));};
+            mr.onstop=function(){
+              stopTracks();
+              var blob=new Blob(chunks,{type:mr.mimeType||mime||"audio/webm"});
+              if(!blob.size){reject(new Error("empty_recording"));return;}
+              blobToWav(blob).then(function(w){resolve(w);},function(){
+                blobToBase64(blob).then(function(b){resolve({audio:b,mime:blob.type||"audio/webm"});},reject);
+              });
+            };
+            try{if(mr.state!=="inactive")mr.stop();else mr.onstop();}catch(e){reject(e);}
+          });
+        }
+      };
     });
   }
-  function encodeWav(chunks,total,rate){
-    var buf=new Float32Array(total),off=0;for(var i=0;i<chunks.length;i++){buf.set(chunks[i],off);off+=chunks[i].length;}
-    var target=16000,samples=rate>target?downsample(buf,rate,target):buf,outRate=rate>target?target:rate;
-    return floatToWavBase64(samples,outRate);
+  function blobToBase64(blob){
+    return new Promise(function(resolve,reject){
+      var fr=new FileReader();
+      fr.onload=function(){var s=String(fr.result||"");var i=s.indexOf(",");resolve(i>=0?s.slice(i+1):s);};
+      fr.onerror=function(){reject(new Error("read_failed"));};
+      fr.readAsDataURL(blob);
+    });
+  }
+  function blobToWav(blob){
+    return blob.arrayBuffer().then(function(ab){
+      var AC=window.AudioContext||window.webkitAudioContext;
+      if(!AC)throw new Error("no_audiocontext");
+      var ctx=new AC();
+      return new Promise(function(resolve,reject){
+        var done=function(buf){try{ctx.close();}catch(e){}resolve(buf);};
+        var fail=function(e){try{ctx.close();}catch(e2){}reject(e||new Error("decode_failed"));};
+        var p;
+        try{p=ctx.decodeAudioData(ab,done,fail);}catch(e){fail(e);return;}
+        if(p&&p.then)p.then(done,fail);
+      });
+    }).then(function(audioBuf){
+      var ch=audioBuf.numberOfChannels>0?audioBuf.getChannelData(0):new Float32Array(0);
+      if(!ch.length)throw new Error("empty_recording");
+      var target=16000,rate=audioBuf.sampleRate;
+      var samples=rate>target?downsample(ch,rate,target):ch;
+      return {audio:floatToWavBase64(samples,rate>target?target:rate),mime:"audio/wav"};
+    });
   }
   function downsample(buf,inRate,outRate){var ratio=inRate/outRate,len=Math.round(buf.length/ratio),out=new Float32Array(len);for(var i=0;i<len;i++)out[i]=buf[Math.floor(i*ratio)];return out;}
   function floatToWavBase64(samples,rate){
@@ -685,7 +740,7 @@ body{font-family:'Inter',system-ui,sans-serif;background:radial-gradient(130% 55
     function w(o,s){for(var i=0;i<s.length;i++)dv.setUint8(o+i,s.charCodeAt(i));}
     w(0,"RIFF");dv.setUint32(4,36+n*2,true);w(8,"WAVE");w(12,"fmt ");dv.setUint32(16,16,true);dv.setUint16(20,1,true);dv.setUint16(22,1,true);dv.setUint32(24,rate,true);dv.setUint32(28,rate*2,true);dv.setUint16(32,2,true);dv.setUint16(34,16,true);w(36,"data");dv.setUint32(40,n*2,true);
     var o2=44;for(var i=0;i<n;i++){var s=Math.max(-1,Math.min(1,samples[i]));dv.setInt16(o2,s<0?s*0x8000:s*0x7FFF,true);o2+=2;}
-    var bytes=new Uint8Array(ab),bin="",CH=0x8000;for(var i=0;i<bytes.length;i+=CH){bin+=String.fromCharCode.apply(null,bytes.subarray(i,i+CH));}
+    var bytes=new Uint8Array(ab),bin="",CH=8192;for(var i=0;i<bytes.length;i+=CH){bin+=String.fromCharCode.apply(null,bytes.subarray(i,i+CH));}
     return btoa(bin);
   }
 
