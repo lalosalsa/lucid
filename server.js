@@ -14,6 +14,7 @@ const path = require("path");
 const express = require("express");
 const { LENSES, MODEL, refine } = require("./lib/refine");
 const { transcribe, GEMINI_MODEL } = require("./lib/transcribe");
+const { develop } = require("./lib/develop");
 
 const app = express();
 // Audio (base64 WAV) can be a few MB; give the body parser room.
@@ -45,6 +46,18 @@ app.post("/api/refine", async (req, res) => {
     else console.error("[refine] failed:", (err && err.message) || err);
     // The frontend falls back to a local quick-format when this fails.
     return res.status(502).json({ error: "refine_failed" });
+  }
+});
+
+app.post("/api/develop", async (req, res) => {
+  const b = req.body || {};
+  const msg = typeof b.message === "string" ? b.message.trim() : "";
+  if (!msg) return res.status(400).json({ error: "empty_message" });
+  try {
+    return res.json({ reply: await develop(b.note, b.thread, msg) });
+  } catch (err) {
+    console.error("[develop] failed:", (err && err.message) || err);
+    return res.status(502).json({ error: "develop_failed" });
   }
 });
 

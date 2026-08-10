@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
-<title>Lucid Notes — think out loud, get it back sharp</title>
+<title>Lucid — think it through, not just write it down</title>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,600;12..96,700;12..96,800&family=Inter:wght@400;450;500;600&family=JetBrains+Mono:wght@400;500&display=swap');
 
@@ -221,6 +221,39 @@ body{font-family:'Inter',system-ui,sans-serif;background:radial-gradient(130% 55
 .mini-btn.danger{flex:none;width:46px;color:var(--muted);}
 .mini-btn.danger.on{flex:1;color:#ff8a8a;border-color:#ff8a8a44;background:#ff8a8a14;}
 
+/* thinking-partner sections: questions / angles / risks */
+.dev-block{margin-top:18px;border-left:2px solid var(--line);padding:2px 0 2px 14px;}
+.dev-block.q{border-color:var(--accent);}
+.dev-block.a{border-color:var(--warm);}
+.dev-block.r{border-color:#E0857A;}
+.dev-block .block-label{margin:0 0 8px;}
+.dev-block.q .block-label{color:var(--accent);}
+.dev-block.a .block-label{color:var(--warm);}
+.dev-block.r .block-label{color:#E0857A;}
+.dev-list{list-style:none;display:flex;flex-direction:column;gap:9px;}
+.dev-list li{font-size:14px;line-height:1.5;color:var(--text);}
+.mine-tag{font-size:10.5px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:var(--faint);}
+
+/* go-deeper thread */
+.thread-wrap{margin-top:20px;border-top:1px solid var(--line-soft);padding-top:16px;}
+.thread{display:flex;flex-direction:column;gap:10px;max-height:300px;overflow-y:auto;padding:2px 0 4px;}
+.thread::-webkit-scrollbar{width:0;}
+.msg{font-size:14px;line-height:1.55;padding:11px 13px;border-radius:14px;max-width:88%;white-space:pre-wrap;word-wrap:break-word;}
+.msg.me{align-self:flex-end;background:var(--accent-dim);border:1px solid var(--accent-line);color:var(--text);border-bottom-right-radius:5px;}
+.msg.ai{align-self:flex-start;background:var(--surface2);border:1px solid var(--line);color:var(--text);border-bottom-left-radius:5px;}
+.msg.thinking{color:var(--muted);font-style:italic;}
+.thread-empty{font-size:13px;color:var(--faint);line-height:1.5;padding:2px 0 6px;}
+.starters{display:flex;flex-wrap:wrap;gap:6px;margin:10px 0 4px;}
+.starter{background:var(--bg);border:1px dashed var(--line);color:var(--muted);font-size:12px;font-weight:500;padding:7px 11px;border-radius:999px;cursor:pointer;font-family:'Inter',sans-serif;text-align:left;line-height:1.35;max-width:100%;transition:all .15s;}
+.starter:hover{color:var(--accent);border-color:var(--accent-line);}
+.thread-input{display:flex;gap:7px;align-items:center;margin-top:12px;}
+.thread-input input{flex:1;background:var(--bg);border:1px solid var(--line);border-radius:12px;padding:12px 13px;color:var(--text);font-size:14px;outline:none;font-family:'Inter',sans-serif;min-width:0;transition:border-color .15s;}
+.thread-input input:focus{border-color:var(--accent-line);}
+.thread-input input::placeholder{color:var(--faint);}
+.thread-input .pill-btn:disabled{opacity:.4;cursor:not-allowed;}
+.meta-q{font-size:11px;font-weight:600;color:var(--accent);display:flex;align-items:center;gap:6px;}
+.meta-q::before{content:"";width:5px;height:5px;border-radius:50%;background:var(--accent);}
+
 @keyframes bar{0%,100%{height:8px;}50%{height:30px;}}
 @keyframes shimmer{0%{background-position:200% 0;}100%{background-position:-200% 0;}}
 @keyframes rise{from{transform:translateY(40px);opacity:.6;}to{transform:translateY(0);opacity:1;}}
@@ -245,7 +278,7 @@ body{font-family:'Inter',system-ui,sans-serif;background:radial-gradient(130% 55
       <div class="lens-wrap" id="lensWrap"></div>
     </div>
   </div>
-  <p class="tag" id="tag">Think out loud. Get it back sharp.</p>
+  <p class="tag" id="tag">Think out loud. Get it back sharper.</p>
   <div class="feed" id="feed"></div>
 </div>
 <button class="fab" id="fab" aria-label="Capture a thought"></button>
@@ -318,6 +351,11 @@ body{font-family:'Inter',system-ui,sans-serif;background:radial-gradient(130% 55
 
   var aSeq=0;
   function normNote(n){
+    /* Notes captured before the thinking-partner update won't have these. */
+    if(!Array.isArray(n.questions))n.questions=[];
+    if(!Array.isArray(n.angles))n.angles=[];
+    if(!Array.isArray(n.risks))n.risks=[];
+    if(!Array.isArray(n.thread))n.thread=[];
     if(!Array.isArray(n.actions))n.actions=[];
     n.actions=n.actions.map(function(a,i){
       if(typeof a==="string")return {id:"a_"+n.id+"_"+(i)+"_"+(aSeq++),text:a,done:false};
@@ -353,7 +391,7 @@ body{font-family:'Inter',system-ui,sans-serif;background:radial-gradient(130% 55
     var thesis=sentences[0]||clean.slice(0,140);
     var points=sentences.slice(1,6).map(function(s){return s.replace(/^(and|so|but|um|uh|like|okay|ok|yeah)\s+/i,"").trim();}).filter(function(s){return s.length>2;}).map(cap);
     var words=clean.split(" ").filter(Boolean).slice(0,5).join(" ").replace(/[.,!?]$/,"");
-    return {title:cap(words||"Quick note"),project:"Inbox",thesis:cap(thesis),points:points,actions:[],offline:true};
+    return {title:cap(words||"Quick note"),project:"Inbox",thesis:cap(thesis),points:points,questions:[],angles:[],risks:[],actions:[],offline:true};
   }
   function cap(s){return s?s.charAt(0).toUpperCase()+s.slice(1):s;}
   function refine(raw,l){return refineWithAI(raw,l).catch(function(){return refineLocally(raw);});}
@@ -394,7 +432,7 @@ body{font-family:'Inter',system-ui,sans-serif;background:radial-gradient(130% 55
     if(view==="library"){
       if(query.trim()){t.textContent="Searching your library";return;}
       if(libTab==="folders"){var auto={};notes.forEach(function(n){if(!n.folderId)auto[n.project||"Inbox"]=1;});var c=folders.length+Object.keys(auto).length;t.textContent=c===0?"Folders gather as you capture.":(c+(c===1?" folder":" folders"));return;}
-      t.textContent="Think out loud. Get it back sharp.";return;
+      t.textContent="Think out loud. Get it back sharper.";return;
     }
     if(view==="folder"){var f=folderById(activeFolderId);var ln=f?notesInFolder(f.id).length:0;t.textContent=(f?f.name:"Folder")+" \u00b7 "+ln+(ln===1?" note":" notes");return;}
     if(view==="project"){var list=notes.filter(function(n){return (n.project||"Inbox")===activeProject&&!n.folderId;});var oc=0;list.forEach(function(n){(n.actions||[]).forEach(function(a){if(!a.done)oc++;});});t.textContent=activeProject+" \u00b7 "+list.length+(list.length===1?" note":" notes")+(oc?" \u00b7 "+oc+" open":"");return;}
@@ -458,7 +496,7 @@ body{font-family:'Inter',system-ui,sans-serif;background:radial-gradient(130% 55
       bindCards(body);return;
     }
     if(libTab==="folders"){renderFolders(body);return;}
-    if(notes.length===0){body.innerHTML='<div class="empty-state"><span class="badge lg">'+MARK_LG+'</span><h2>Nothing captured yet</h2><p>Tap the mic and just talk. Half a thought is fine \u2014 Lucid organizes it into a note you\u2019d actually keep.</p></div>';return;}
+    if(notes.length===0){body.innerHTML='<div class="empty-state"><span class="badge lg">'+MARK_LG+'</span><h2>Nothing captured yet</h2><p>Tap the mic and talk through what\u2019s on your mind. Half a thought is fine \u2014 Lucid sharpens it, then asks the questions worth answering.</p></div>';return;}
     var list=sortedNotes();
     if(sortMode==="manual"){
       var mh='<div class="tasks-lead">Drag to arrange</div><div id="manualList">';
@@ -503,7 +541,8 @@ body{font-family:'Inter',system-ui,sans-serif;background:radial-gradient(130% 55
   function cardHTML(n,showFolder){
     var oc=(n.actions||[]).filter(function(a){return !a.done;}).length;
     var meta="";
-    if(showFolder||oc>0||n.offline){meta='<div class="card-meta">';if(showFolder)meta+='<span class="meta-proj">'+esc(folderName(n))+'</span>';if(oc>0)meta+='<span class="meta-act">'+oc+' open '+(oc===1?"task":"tasks")+'</span>';if(n.offline)meta+='<span class="meta-quick">quick format</span>';meta+='</div>';}
+    var qc=(n.questions||[]).length;
+    if(showFolder||oc>0||qc>0||n.offline){meta='<div class="card-meta">';if(showFolder)meta+='<span class="meta-proj">'+esc(folderName(n))+'</span>';if(oc>0)meta+='<span class="meta-act">'+oc+' open '+(oc===1?"task":"tasks")+'</span>';if(qc>0)meta+='<span class="meta-q">'+qc+' '+(qc===1?"question":"questions")+'</span>';if(n.offline)meta+='<span class="meta-quick">quick format</span>';meta+='</div>';}
     return '<div class="card" data-id="'+n.id+'"><div class="card-top"><span class="card-title">'+esc(n.title)+'</span><span class="card-right"><span class="card-time">'+timeAgo(n.createdAt)+'</span><button class="card-play'+(speakingId===n.id?" playing":"")+'" data-play="'+n.id+'" aria-label="Read this note aloud">'+(speakingId===n.id?I.stopc(11):I.play(11))+'</button></span></div>'+(n.thesis?'<p class="card-thesis">'+esc(n.thesis)+'</p>':"")+meta+'</div>';
   }
   function mcardHTML(n){
@@ -745,34 +784,87 @@ body{font-family:'Inter',system-ui,sans-serif;background:radial-gradient(130% 55
   }
 
   /* ---- detail ---- */
+  function devSection(label,items,cls){
+    if(!items||!items.length)return "";
+    return '<div class="dev-block '+cls+'"><span class="block-label">'+label+'</span><ul class="dev-list">'+items.map(function(x){return '<li>'+esc(x)+'</li>';}).join("")+'</ul></div>';
+  }
+  function noteForApi(n){
+    return {title:n.title,thesis:n.thesis,points:n.points||[],questions:n.questions||[],angles:n.angles||[],risks:n.risks||[],actions:(n.actions||[]).map(function(a){return a.text;}),raw:n.raw};
+  }
   function openDetail(id){
-    var showRaw=false,confirmDel=false,busy=false;
+    var showRaw=false,confirmDel=false,busy=false,showThread=false,devBusy=false;
+    function threadPanel(n){
+      if(!showThread)return "";
+      var msgs=(n.thread||[]).map(function(m){return '<div class="msg '+(m.role==="user"?"me":"ai")+'">'+esc(m.text)+'</div>';}).join("");
+      if(!msgs&&!devBusy)msgs='<p class="thread-empty">Push back, ask for angles, or pressure-test the plan. Tap a question below to start.</p>';
+      if(devBusy)msgs+='<div class="msg ai thinking">Thinking\u2026</div>';
+      var unanswered=(n.questions||[]).filter(function(q){
+        return !(n.thread||[]).some(function(m){return m.role==="user"&&m.text===q;});
+      }).slice(0,3);
+      var starters=unanswered.length?'<div class="starters">'+unanswered.map(function(q,i){return '<button class="starter" data-starter="'+i+'">'+esc(q)+'</button>';}).join("")+'</div>':"";
+      return '<div class="thread-wrap"><div class="thread" id="threadBox">'+msgs+'</div>'+starters+'<div class="thread-input"><input id="devInput" type="text" placeholder="Push this further\u2026" autocomplete="off" /><button class="pill-btn" id="devSend"'+(devBusy?" disabled":"")+'>Send</button></div></div>';
+    }
+    function sendDev(text){
+      var n=find(id);if(!n)return;
+      text=(text||"").trim();if(!text||devBusy)return;
+      n.thread.push({role:"user",text:text,ts:Date.now()});
+      var history=n.thread.slice(0,-1);
+      devBusy=true;saveNotes();render();
+      fetch("/api/develop",{method:"POST",headers:{"Content-Type":"application/json"},
+        body:JSON.stringify({note:noteForApi(n),thread:history,message:text})})
+      .then(function(res){if(!res.ok)throw new Error("dev_"+res.status);return res.json();})
+      .then(function(j){n.thread.push({role:"assistant",text:(j&&j.reply)||"",ts:Date.now()});})
+      .catch(function(err){console.error("[develop]",err);n.thread.push({role:"assistant",text:"Couldn\u2019t reach your thinking partner just now \u2014 try again in a moment.",ts:Date.now()});})
+      .then(function(){devBusy=false;saveNotes();render();});
+    }
     function render(){
       var n=find(id);if(!n){closeModals();return;}
-      var pts=n.points&&n.points.length?'<ul class="points">'+n.points.map(function(p){return '<li><span class="bullet"></span>'+esc(p)+'</li>';}).join("")+'</ul>':"";
+      var pts=n.points&&n.points.length?'<span class="block-label">What you said</span><ul class="points">'+n.points.map(function(p){return '<li><span class="bullet"></span>'+esc(p)+'</li>';}).join("")+'</ul>':"";
+      var devs=devSection("Questions to answer",n.questions,"q")+devSection("Angles to consider",n.angles,"a")+devSection("Watch out for",n.risks,"r");
       var acts="";
       if(n.actions&&n.actions.length){
         acts='<div class="actions-block"><span class="block-label">Tasks</span>'+n.actions.map(function(a){return '<button class="action-row taskbtn'+(a.done?" done":"")+'" data-act="'+a.id+'"><span class="acheck'+(a.done?" on":"")+'">'+(a.done?I.check(12):"")+'</span><span>'+esc(a.text)+'</span></button>';}).join("")+'</div>';
       }
       var raw=showRaw?'<p class="raw-text">'+esc(n.raw)+'</p>':"";
       var fileRow='<div class="file-row"><span class="block-label">Filed in</span><div class="chips" id="folderChips"><button class="chip'+(!n.folderId?" on":"")+'" data-fid="">Auto \u00b7 '+esc(n.project||"Inbox")+'</button>'+folders.map(function(f){return '<button class="chip'+(n.folderId===f.id?" on":"")+'" data-fid="'+f.id+'">'+esc(f.name)+'</button>';}).join("")+'</div></div>';
-      document.getElementById("modals").innerHTML='<div class="scrim" id="detScrim"><div class="sheet" id="detSheet"><div class="grab"></div><div class="detail-head"><div><span class="detail-project">'+esc(folderName(n))+'</span><h2 class="detail-title">'+esc(n.title)+'</h2></div><button class="icon-btn" id="detClose">'+I.x(18)+'</button></div><div class="detail-body" style="'+(busy?"opacity:.4":"")+'">'+(n.thesis?'<p class="detail-thesis">'+esc(n.thesis)+'</p>':"")+pts+acts+fileRow+'<button class="raw-toggle" id="rawToggle">'+I.chevron(14)+(showRaw?"Hide":"Show")+' what you said</button>'+raw+'</div><div class="expand-row"><button class="listen-btn'+(speakingId===n.id?" playing":"")+'" id="listenBtn">'+(speakingId===n.id?I.stopc(15)+'Stop':I.play(15)+'Listen')+'</button><button class="expand-btn" id="expandClaude">'+I.expand(16)+'Expand in Claude</button></div><div class="detail-actions"><button class="mini-btn" id="sharpen">'+I.refresh(15)+'Sharpen</button><button class="mini-btn" id="copy">'+I.copy(15)+'Copy</button>'+(confirmDel?'<button class="mini-btn danger on" id="del">'+I.trash(15)+'Sure?</button>':'<button class="mini-btn danger" id="del">'+I.trash(15)+'</button>')+'</div></div></div>';
+      var deepLabel=(n.thread&&n.thread.length)?"Continue ("+n.thread.filter(function(m){return m.role==="user";}).length+")":"Go deeper";
+      document.getElementById("modals").innerHTML='<div class="scrim" id="detScrim"><div class="sheet" id="detSheet"><div class="grab"></div><div class="detail-head"><div><span class="detail-project">'+esc(folderName(n))+'</span><h2 class="detail-title">'+esc(n.title)+'</h2></div><button class="icon-btn" id="detClose">'+I.x(18)+'</button></div><div class="detail-body" style="'+(busy?"opacity:.4":"")+'">'+(n.thesis?'<p class="detail-thesis">'+esc(n.thesis)+'</p>':"")+pts+devs+acts+fileRow+'<button class="raw-toggle" id="rawToggle">'+I.chevron(14)+(showRaw?"Hide":"Show")+' what you said</button>'+raw+threadPanel(n)+'</div><div class="expand-row"><button class="listen-btn'+(speakingId===n.id?" playing":"")+'" id="listenBtn">'+(speakingId===n.id?I.stopc(15)+'Stop':I.play(15)+'Listen')+'</button><button class="expand-btn" id="goDeeper">'+I.expand(16)+deepLabel+'</button></div><div class="detail-actions"><button class="mini-btn" id="sharpen">'+I.refresh(15)+'Sharpen</button><button class="mini-btn" id="copy">'+I.copy(15)+'Copy</button>'+(confirmDel?'<button class="mini-btn danger on" id="del">'+I.trash(15)+'Sure?</button>':'<button class="mini-btn danger" id="del">'+I.trash(15)+'</button>')+'</div></div></div>';
       document.getElementById("detSheet").onclick=function(e){e.stopPropagation();};
       document.getElementById("detScrim").onclick=closeModals;
       document.getElementById("detClose").onclick=closeModals;
       document.getElementById("rawToggle").onclick=function(){showRaw=!showRaw;render();};
       document.getElementById("copy").onclick=function(){try{navigator.clipboard.writeText(noteToText(n));}catch(e){}toast("Copied to clipboard");};
       document.getElementById("listenBtn").onclick=function(){speakNote(n,function(){render();});};
-      document.getElementById("expandClaude").onclick=function(){handoffToClaude(n);};
+      document.getElementById("goDeeper").onclick=function(){showThread=!showThread;render();};
       Array.prototype.forEach.call(document.querySelectorAll("#folderChips .chip"),function(b){b.onclick=function(){var fid=b.getAttribute("data-fid");n.folderId=fid?fid:null;saveNotes();render();renderApp();var fn=fid&&folderById(fid)?folderById(fid).name:null;toast(fn?("Moved to "+fn):"Back to Auto");};});
       Array.prototype.forEach.call(document.querySelectorAll("#detSheet .taskbtn"),function(b){b.onclick=function(){toggleTask(n.id,b.getAttribute("data-act"));render();renderApp();};});
       var del=document.getElementById("del");
       del.onclick=function(){if(!confirmDel){confirmDel=true;render();return;}notes=notes.filter(function(x){return x.id!==id;});manualOrder=manualOrder.filter(function(x){return x!==id;});saveNotes();renderApp();closeModals();};
       document.getElementById("sharpen").onclick=function(){if(busy)return;busy=true;render();refine(n.raw,n.lens).then(function(r){for(var k in r){n[k]=r[k];}normNote(n);saveNotes();busy=false;render();renderApp();toast(r.offline?"Reformatted (offline)":"Sharpened again");});};
+      if(showThread){
+        var box=document.getElementById("threadBox");if(box)box.scrollTop=box.scrollHeight;
+        var inp=document.getElementById("devInput"),snd=document.getElementById("devSend");
+        if(snd)snd.onclick=function(){if(inp){var v=inp.value;inp.value="";sendDev(v);}};
+        if(inp)inp.onkeydown=function(e){if(e.key==="Enter"){var v=inp.value;inp.value="";sendDev(v);}};
+        var starterEls=document.querySelectorAll("#detSheet .starter");
+        Array.prototype.forEach.call(starterEls,function(b){b.onclick=function(){sendDev(b.textContent);};});
+        if(!devBusy&&inp&&(n.thread||[]).length)inp.focus();
+      }
     }
     render();
   }
-  function noteToText(n){var out=n.title+"\n\n";if(n.thesis)out+=n.thesis+"\n\n";if(n.points&&n.points.length)out+=n.points.map(function(p){return "\u2022 "+p;}).join("\n")+"\n\n";if(n.actions&&n.actions.length)out+="Tasks:\n"+n.actions.map(function(a){return (a.done?"[x] ":"[ ] ")+a.text;}).join("\n")+"\n\n";return out+"\u2014 captured with Lucid Notes";}
+  function noteToText(n){
+    var out=n.title+"\n\n";
+    if(n.thesis)out+=n.thesis+"\n\n";
+    if(n.points&&n.points.length)out+=n.points.map(function(p){return "\u2022 "+p;}).join("\n")+"\n\n";
+    function sec(label,a){return (a&&a.length)?label+":\n"+a.map(function(x){return "\u2022 "+x;}).join("\n")+"\n\n":"";}
+    out+=sec("Questions to answer",n.questions);
+    out+=sec("Angles to consider",n.angles);
+    out+=sec("Watch out for",n.risks);
+    if(n.actions&&n.actions.length)out+="Tasks:\n"+n.actions.map(function(a){return (a.done?"[x] ":"[ ] ")+a.text;}).join("\n")+"\n\n";
+    if(n.thread&&n.thread.length)out+="Deeper thinking:\n"+n.thread.map(function(m){return (m.role==="user"?"You: ":"Lucid: ")+m.text;}).join("\n\n")+"\n\n";
+    return out+"\u2014 captured with Lucid";
+  }
 
   /* ---- read aloud ---- */
   var TTS=(typeof window!=="undefined"&&window.speechSynthesis)?window.speechSynthesis:null;
@@ -824,19 +916,6 @@ body{font-family:'Inter',system-ui,sans-serif;background:radial-gradient(130% 55
   }
   if(TTS&&typeof TTS.onvoiceschanged!=="undefined"){TTS.onvoiceschanged=function(){pickVoice();};}
 
-  function handoffToClaude(n){
-    var body="I captured this note in Lucid and want to develop it further.\n\n"
-      +"TITLE: "+n.title+"\n"
-      +(n.thesis?"THESIS: "+n.thesis+"\n":"")
-      +((n.points&&n.points.length)?"POINTS:\n"+n.points.map(function(p){return "- "+p;}).join("\n")+"\n":"")
-      +((n.actions&&n.actions.length)?"OPEN TASKS:\n"+n.actions.filter(function(a){return !a.done;}).map(function(a){return "- "+a.text;}).join("\n")+"\n":"")
-      +"\nWHAT I ORIGINALLY SAID:\n"+n.raw
-      +"\n\nHelp me pressure-test and expand this. Ask me anything you need first.";
-    try{navigator.clipboard.writeText(body);}catch(e){}
-    var url="https://claude.ai/new?q="+encodeURIComponent(body.slice(0,1500));
-    try{window.open(url,"_blank","noopener");}catch(e){}
-    toast("Note copied \u00b7 opening Claude");
-  }
   function openSettings(){
     var connected=false;
     document.getElementById("modals").innerHTML=
