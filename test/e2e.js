@@ -195,6 +195,48 @@ function check(name, ok, extra) {
     await page.waitForTimeout(150);
   }
 
+  // ---- 6c. write a note by hand, then expand it later
+  await page.locator('[data-seg="notes"]').count().then(async (c) => { if (c) await page.locator('[data-seg="notes"]').click(); });
+  await page.waitForTimeout(150);
+  check("New note button present", await page.locator("#newNoteBtn").isVisible());
+  await page.locator("#newNoteBtn").click();
+  await page.waitForTimeout(200);
+  check("new-note sheet opens", await page.locator("#nnBody").isVisible());
+  check("save disabled while empty", await page.locator("#nnSave").isDisabled());
+  await page.locator("#nnTitle").fill("Supplier renegotiation");
+  await page.locator("#nnBody").fill("Mulch is up 18% since spring. Ask Kyle for volume pricing before the May order.");
+  await page.waitForTimeout(120);
+  check("save enables with content", !(await page.locator("#nnSave").isDisabled()));
+  await page.locator("#nnSave").click();
+  await page.waitForTimeout(300);
+  const titles = await page.locator(".card-title").allInnerTexts();
+  check("written note appears", titles.includes("Supplier renegotiation"), JSON.stringify(titles));
+  const rawCard = page.locator(".card", { hasText: "Supplier renegotiation" }).first();
+  check("shows 'not expanded'", (await rawCard.innerText()).toLowerCase().includes("not expanded"), await rawCard.innerText());
+
+  await rawCard.click();
+  await page.waitForTimeout(250);
+  const rawBody = await page.locator(".detail-body").innerText();
+  check("body shown in full", rawBody.includes("volume pricing"), rawBody.slice(0, 120));
+  check("Expand with AI offered", await page.locator("#expandAI").isVisible());
+  check("no redundant raw toggle", (await page.locator("#rawToggle").count()) === 0);
+  await page.locator("#detClose").click();
+  await page.waitForTimeout(150);
+
+  // capture sheet offers save-as-is
+  await page.locator("#fab").click();
+  await page.waitForTimeout(500);
+  if ((await page.locator("#typed").count()) === 1) {
+    check("save-as-is disabled while empty", await page.locator("#saveRaw").isDisabled());
+    await page.locator("#typed").fill("Quick thought about the truck lease renewal");
+    await page.waitForTimeout(120);
+    check("save-as-is enables", !(await page.locator("#saveRaw").isDisabled()));
+    await page.locator("#saveRaw").click();
+    await page.waitForTimeout(300);
+    const t2 = await page.locator(".card-thesis").allInnerTexts();
+    check("captured text saved without AI", t2.some((t) => t.includes("truck lease")), JSON.stringify(t2));
+  }
+
   // ---- 7. persistence across reload
   await page.reload({ waitUntil: "networkidle" });
   await page.waitForTimeout(200);

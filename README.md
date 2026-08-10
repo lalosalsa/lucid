@@ -10,8 +10,12 @@ idea it's about. Typing skips the first two steps.
 
 ## What it does
 
-- **Talk, don't type.** One tap on the mic starts recording; stop and the
-  thought is transcribed, sharpened, and saved.
+- **Capture any way you like.** Tap the mic and talk, type a thought, or write
+  a plain note by hand. Voice and typed thoughts can be structured by AI on
+  capture — or saved as-is and expanded later.
+- **Expand on your terms.** A note saved as raw text sits untouched until you
+  tap **Expand with AI**, which adds the sharpened summary, questions, angles,
+  and risks. Nothing is sent to a model unless you ask.
 - **It thinks with you.** Every note comes back split into what *you* said
   (thesis + points, never embellished) and what Lucid adds — questions worth
   answering, angles you didn't mention, and risks you may be carrying. Tap
