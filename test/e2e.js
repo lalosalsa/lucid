@@ -40,11 +40,16 @@ function check(name, ok, extra) {
   await page.locator('[data-view="tasks"]').click();
   check("tasks add-row visible", await page.locator("#newTask").isVisible());
   await page.locator("#newTask").fill("Call the mulch supplier");
-  await page.locator("#newTask").press("Enter");
-  await page.waitForTimeout(150);
+  await page.locator("#newTaskAdd").click();          // the + button, not just Enter
+  await page.waitForTimeout(200);
   const taskTexts = await page.locator(".task-text").allInnerTexts();
   check("manual task appears", taskTexts.some((t) => t.includes("mulch supplier")), JSON.stringify(taskTexts));
   check("tab badge counts it", (await page.locator(".tab-badge").innerText()) === "1");
+  check("input clears after add", (await page.locator("#newTask").inputValue()) === "");
+  await page.locator("#newTask").fill("Second task via Enter");
+  await page.locator("#newTask").press("Enter");
+  await page.waitForTimeout(200);
+  check("Enter key also adds", (await page.locator(".task-text").allInnerTexts()).some((t) => t.includes("Second task")));
 
   // toggle done
   await page.locator(".tcheck").first().click();

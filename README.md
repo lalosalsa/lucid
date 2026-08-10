@@ -34,6 +34,9 @@ idea it's about. Typing skips the first two steps.
   straight into the Tasks tab, add one inside a note, or just say
   *"add task: call the supplier"* and it's captured as a task instead of a note.
   Once a task is checked off, an × appears to remove it for good.
+- **Voice shortcuts.** Start a recording with *"add task…"* to capture a to-do,
+  or *"just note…"* / *"make a note about…"* to save your exact words with no AI
+  call — expand it later if it turns out to matter.
 
 ## Running the UI test
 
@@ -44,7 +47,8 @@ voice commands, persistence). Playwright is deliberately not a dependency, so:
 npm i --no-save playwright
 npm start &            # serves on :3000
 PORT=3992 npm start &  # or point BASE at any running instance
-npm run test:e2e
+npm run test:e2e     # 61 UI checks
+npm run test:voice   # 11 checks, drives the mic with a fake audio device
 ```
 
 ## Why there's a backend
