@@ -1,4 +1,18 @@
-const { chromium } = require("playwright");
+/*
+ * End-to-end UI test. Playwright is intentionally NOT a package.json dependency
+ * (it would slow every deploy build), so install it once to run this:
+ *   npm i --no-save playwright
+ * Then, with the app running on :3992:  npm run test:e2e
+ */
+let chromium;
+try { ({ chromium } = require("playwright")); }
+catch (e) {
+  console.log("playwright not installed - skipping UI test.\n  npm i --no-save playwright");
+  process.exit(0);
+}
+const CHROME = process.env.CHROME_PATH ||
+  ["/opt/pw-browsers/chromium-1194/chrome-linux/chrome", "/opt/pw-browsers/chromium/chrome-linux/chrome"]
+    .find((p) => require("fs").existsSync(p));
 
 const BASE = process.env.BASE || "http://localhost:3992";
 const errors = [];
@@ -9,11 +23,11 @@ function check(name, ok, extra) {
 }
 
 (async () => {
-  const browser = await chromium.launch({ executablePath: "/opt/pw-browsers/chromium-1194/chrome-linux/chrome" });
+  const browser = await chromium.launch(CHROME ? { executablePath: CHROME } : {});
   const ctx = await browser.newContext({ viewport: { width: 400, height: 850 } });
   const page = await ctx.newPage();
   page.on("pageerror", (e) => errors.push("pageerror: " + e.message));
-  page.on("console", (m) => { const t=m.text(); if (m.type()==="error" && !/Failed to load resource/.test(t)) errors.push("console: "+t); });
+  page.on("console", (m) => { const t=m.text(); if (m.type()==="error" && !/Failed to load resource/.test(t) && !/could not start recording/.test(t)) errors.push("console: "+t); });
 
   // ---- 1. cold load
   await page.goto(BASE, { waitUntil: "networkidle" });
@@ -87,7 +101,8 @@ function check(name, ok, extra) {
       questions: ["What is churn risk at $49?", "Do you grandfather existing accounts?"],
       angles: ["Introduce a usage-based add-on instead"],
       risks: ["Assumes power users are price-insensitive"],
-      actions: [{ id: "a1", text: "Model churn at $49", done: false }],
+      actions: [],
+      suggestions: ["Model churn at $49", "Draft the grandfather policy"],
       thread: []
     }];
     localStorage.setItem("lucid:notes:v1", JSON.stringify(raw));
@@ -97,6 +112,7 @@ function check(name, ok, extra) {
   check("note card renders", (await page.locator(".card-title").first().innerText()) === "Raise pro tier pricing");
   const meta = await page.locator(".card-meta").first().innerText();
   check("card shows question count", meta.includes("question"), meta);
+  check("card shows suggested count", meta.includes("suggested"), meta);
 
   await page.locator(".card").first().click();
   await page.waitForTimeout(200);
@@ -104,6 +120,17 @@ function check(name, ok, extra) {
   check("thinking sections render", body.includes("questions to answer") && body.includes("angles to consider") && body.includes("watch out for"));
   check("business chip section", body.includes("business"));
   check("Go deeper button", await page.locator("#goDeeper").isVisible());
+
+  // suggestions are opt-in, not auto-added
+  check("suggestions block renders", (await page.locator(".sugg-row").count()) === 2);
+  check("no tasks auto-added", (await page.locator(".actions-block .taskbtn").count()) === 0);
+  await page.locator(".sugg-add").first().click();
+  await page.waitForTimeout(200);
+  check("accepting a suggestion creates a task", (await page.locator(".actions-block .taskbtn").count()) === 1);
+  check("accepted suggestion removed from list", (await page.locator(".sugg-row").count()) === 1);
+  await page.locator(".sugg-no").first().click();
+  await page.waitForTimeout(200);
+  check("dismissing a suggestion removes it", (await page.locator(".sugg-row").count()) === 0);
 
   // rename note title
   await page.locator("#titleTap").click();
@@ -149,13 +176,32 @@ function check(name, ok, extra) {
   await page.locator("#libClr").click();
   await page.waitForTimeout(150);
 
+  // ---- 6b. "add task" command creates a task, not a note
+  const notesBefore = await page.locator(".card").count();
+  await page.locator("#fab").click();
+  await page.waitForTimeout(500);
+  const typing = await page.locator("#typed").count();
+  check("capture falls back to typing without a mic", typing === 1);
+  if (typing) {
+    await page.locator("#typed").fill("add task: order new business cards");
+    await page.locator("#refineTyped").click();
+    await page.waitForTimeout(500);
+    check("command made no new note", (await page.locator(".card").count()) === notesBefore);
+    await page.locator('[data-view="tasks"]').click();
+    await page.waitForTimeout(200);
+    const tt = await page.locator(".task-text").allInnerTexts();
+    check("command created the task", tt.some((t) => t.toLowerCase().includes("business cards")), JSON.stringify(tt));
+    await page.locator('[data-view="library"]').click();
+    await page.waitForTimeout(150);
+  }
+
   // ---- 7. persistence across reload
   await page.reload({ waitUntil: "networkidle" });
   await page.waitForTimeout(200);
   await page.locator('[data-view="tasks"]').click();
   await page.waitForTimeout(150);
   const after = await page.locator(".task-text").allInnerTexts();
-  check("data persists after reload", after.some((t) => t.includes("mulch")) && after.some((t) => t.includes("grandfather")), JSON.stringify(after));
+  check("data persists after reload", after.some((t) => t.includes("mulch")) && after.some((t) => t.toLowerCase().includes("churn")), JSON.stringify(after));
 
   await browser.close();
   console.log("\n  " + pass + " passed, " + fail + " failed");

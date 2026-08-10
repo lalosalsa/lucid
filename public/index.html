@@ -221,6 +221,17 @@ body{font-family:'Inter',system-ui,sans-serif;background:radial-gradient(130% 55
 .mini-btn.danger{flex:none;width:46px;color:var(--muted);}
 .mini-btn.danger.on{flex:1;color:#ff8a8a;border-color:#ff8a8a44;background:#ff8a8a14;}
 
+.sugg-block{border:1px dashed var(--line);background:transparent;}
+.sugg-row{display:flex;align-items:flex-start;gap:10px;padding:9px 0;border-bottom:1px solid var(--line-soft);}
+.sugg-row:last-child{border-bottom:none;}
+.sugg-text{flex:1;font-size:14px;line-height:1.45;color:var(--muted);}
+.sugg-btns{display:flex;align-items:center;gap:4px;flex:none;}
+.sugg-add{display:inline-flex;align-items:center;gap:4px;background:var(--accent-dim);border:1px solid var(--accent-line);color:var(--accent);font-size:12px;font-weight:600;padding:5px 10px;border-radius:999px;cursor:pointer;font-family:'Inter',sans-serif;}
+.sugg-add:hover{background:#8f90ff33;}
+.sugg-no{background:none;border:none;color:var(--faint);cursor:pointer;padding:4px;display:flex;}
+.sugg-no:hover{color:#ff8a8a;}
+.meta-sugg{font-size:11px;font-weight:600;color:var(--muted);display:flex;align-items:center;gap:6px;}
+.meta-sugg::before{content:"";width:5px;height:5px;border-radius:50%;background:var(--faint);}
 .addtask-row{display:flex;gap:7px;align-items:center;margin-bottom:14px;}
 .addtask-row input{flex:1;background:var(--surface);border:1px solid var(--line);border-radius:13px;padding:12px 13px;color:var(--text);font-size:14px;outline:none;font-family:'Inter',sans-serif;min-width:0;transition:border-color .15s;}
 .addtask-row input:focus{border-color:var(--accent-line);}
@@ -377,6 +388,7 @@ body{font-family:'Inter',system-ui,sans-serif;background:radial-gradient(130% 55
     if(!Array.isArray(n.angles))n.angles=[];
     if(!Array.isArray(n.risks))n.risks=[];
     if(!Array.isArray(n.thread))n.thread=[];
+    if(!Array.isArray(n.suggestions))n.suggestions=[];
     if(!Array.isArray(n.actions))n.actions=[];
     n.actions=n.actions.map(function(a,i){
       if(typeof a==="string")return {id:"a_"+n.id+"_"+(i)+"_"+(aSeq++),text:a,done:false};
@@ -404,7 +416,7 @@ body{font-family:'Inter',system-ui,sans-serif;background:radial-gradient(130% 55
       body:JSON.stringify({raw:raw,lens:l,ventures:known})})
     .then(function(res){if(!res.ok)throw new Error("api");return res.json();})
     .then(function(p){
-      return {title:p.title||"Untitled note",project:(p.project||"Inbox").trim(),venture:p.venture||null,thesis:p.thesis||"",points:Array.isArray(p.points)?p.points.slice(0,5):[],questions:Array.isArray(p.questions)?p.questions:[],angles:Array.isArray(p.angles)?p.angles:[],risks:Array.isArray(p.risks)?p.risks:[],actions:Array.isArray(p.actions)?p.actions.slice(0,3):[],offline:false};});
+      return {title:p.title||"Untitled note",project:(p.project||"Inbox").trim(),venture:p.venture||null,thesis:p.thesis||"",points:Array.isArray(p.points)?p.points.slice(0,5):[],questions:Array.isArray(p.questions)?p.questions:[],angles:Array.isArray(p.angles)?p.angles:[],risks:Array.isArray(p.risks)?p.risks:[],suggestions:Array.isArray(p.actions)?p.actions.slice(0,3):[],actions:[],offline:false};});
   }
   function refineLocally(raw){
     var clean=raw.trim().replace(/\s+/g," ");
@@ -421,7 +433,7 @@ body{font-family:'Inter',system-ui,sans-serif;background:radial-gradient(130% 55
     var stop={};STOP.forEach(function(w){stop[w]=1;});
     var picked=clean.replace(/[^\w\s']/g," ").split(/\s+/).filter(function(w){return w&&!stop[w.toLowerCase()];}).slice(0,5).join(" ");
     var words=picked||clean.split(" ").filter(Boolean).slice(0,5).join(" ").replace(/[.,!?]$/,"");
-    return {title:cap(words||"Quick note"),project:"Inbox",thesis:cap(thesis),points:points,questions:[],angles:[],risks:[],actions:[],offline:true};
+    return {title:cap(words||"Quick note"),project:"Inbox",thesis:cap(thesis),points:points,questions:[],angles:[],risks:[],suggestions:[],actions:[],offline:true};
   }
   function cap(s){return s?s.charAt(0).toUpperCase()+s.slice(1):s;}
   function refine(raw,l){return refineWithAI(raw,l).catch(function(){return refineLocally(raw);});}
@@ -741,8 +753,8 @@ body{font-family:'Inter',system-ui,sans-serif;background:radial-gradient(130% 55
   function cardHTML(n,showFolder){
     var oc=(n.actions||[]).filter(function(a){return !a.done;}).length;
     var meta="";
-    var qc=(n.questions||[]).length;
-    if(showFolder||oc>0||qc>0||n.offline){meta='<div class="card-meta">';if(showFolder)meta+='<span class="meta-proj">'+esc(folderName(n))+'</span>';if(oc>0)meta+='<span class="meta-act">'+oc+' open '+(oc===1?"task":"tasks")+'</span>';if(qc>0)meta+='<span class="meta-q">'+qc+' '+(qc===1?"question":"questions")+'</span>';if(n.offline)meta+='<span class="meta-quick">quick format</span>';meta+='</div>';}
+    var qc=(n.questions||[]).length,sc=(n.suggestions||[]).length;
+    if(showFolder||oc>0||qc>0||sc>0||n.offline){meta='<div class="card-meta">';if(showFolder)meta+='<span class="meta-proj">'+esc(folderName(n))+'</span>';if(oc>0)meta+='<span class="meta-act">'+oc+' open '+(oc===1?"task":"tasks")+'</span>';if(sc>0)meta+='<span class="meta-sugg">'+sc+' suggested</span>';if(qc>0)meta+='<span class="meta-q">'+qc+' '+(qc===1?"question":"questions")+'</span>';if(n.offline)meta+='<span class="meta-quick">quick format</span>';meta+='</div>';}
     return '<div class="card" data-id="'+n.id+'"><div class="card-top"><span class="card-title">'+esc(n.title)+'</span><span class="card-right"><span class="card-time">'+timeAgo(n.createdAt)+'</span><button class="card-play'+(speakingId===n.id?" playing":"")+'" data-play="'+n.id+'" aria-label="Read this note aloud">'+(speakingId===n.id?I.stopc(11):I.play(11))+'</button></span></div>'+(n.thesis?'<p class="card-thesis">'+esc(n.thesis)+'</p>':"")+meta+'</div>';
   }
   function mcardHTML(n){
@@ -859,9 +871,9 @@ body{font-family:'Inter',system-ui,sans-serif;background:radial-gradient(130% 55
   function closeModals(){stopSpeaking();stopTimer();if(recorder){try{recorder.cancel();}catch(e){}recorder=null;}document.getElementById("modals").innerHTML="";}
   function renderCapture(){
     var body="";
-    if(capPhase==="idle"){body='<div class="cap-idle"><button class="rec-btn" id="recBtn">'+I.mic(30)+'</button><p class="cap-hint">Tap and start talking</p><button class="text-alt" id="toType">'+I.keyboard(14)+'Type instead</button></div>';}
+    if(capPhase==="idle"){body='<div class="cap-idle"><button class="rec-btn" id="recBtn">'+I.mic(30)+'</button><p class="cap-hint">Tap and start talking</p><p class="cap-hint dim" style="margin-top:8px;font-size:12px">Or say \u201cadd task \u2026\u201d to jot a to-do</p><button class="text-alt" id="toType">'+I.keyboard(14)+'Type instead</button></div>';}
     else if(capPhase==="listening"){body='<div class="cap-live"><div class="live-transcript" id="liveT" style="display:flex;align-items:center;justify-content:center"><p style="text-align:center"><span class="ghost">Listening\u2026 speak now.</span><br><span id="recTime" style="font-family:\'JetBrains Mono\',monospace;font-size:15px;color:var(--accent)">0:00</span></p></div><div class="bars">'+bars()+'</div><button class="stop-btn" id="stopBtn">'+I.square(16)+'Stop &amp; refine</button></div>';}
-    else if(capPhase==="type"){body='<div class="cap-type"><textarea id="typed" rows="5" placeholder="Dump the rough thought here\u2026"></textarea><div class="type-row">'+(CANREC?'<button class="text-alt" id="toVoice">'+I.mic(14)+'Use voice</button>':'<span></span>')+'<button class="primary-btn" id="refineTyped" disabled>'+I.spark(15)+'Refine</button></div></div>';}
+    else if(capPhase==="type"){body='<div class="cap-type"><textarea id="typed" rows="5" placeholder="Dump the rough thought here\u2026 (or \u201cadd task: call the supplier\u201d)"></textarea><div class="type-row">'+(CANREC?'<button class="text-alt" id="toVoice">'+I.mic(14)+'Use voice</button>':'<span></span>')+'<button class="primary-btn" id="refineTyped" disabled>'+I.spark(15)+'Refine</button></div></div>';}
     else if(capPhase==="refining"){body='<div class="cap-refining"><div class="orbit">'+I.spark(22)+'</div><div class="refine-lines"><div class="shimmer-line"></div><div class="shimmer-line"></div><div class="shimmer-line short"></div></div><p class="cap-hint dim">'+esc(refMsg||"Structuring your thought\u2026")+'</p></div>';}
     var lensBar=capPhase==="refining"?"":'<div class="sheet-lens">'+Object.keys(LENSES).map(function(k){return '<button class="lens-seg'+(k===lens?" on":"")+'" data-slens="'+k+'">'+LENSES[k].label+'</button>';}).join("")+'</div>';
     var head='<div class="sheet-head"><span class="sheet-title">'+(capPhase==="refining"?"Refining\u2026":"New thought")+'</span>'+(capPhase!=="refining"?'<button class="icon-btn" id="capClose">'+I.x(18)+'</button>':"")+'</div>';
@@ -907,8 +919,32 @@ body{font-family:'Inter',system-ui,sans-serif;background:radial-gradient(130% 55
       toast(err&&err.message==="empty_recording"?"No audio captured \u2014 type it":"Couldn\u2019t transcribe \u2014 type it");
     });
   }
+  /* Spoken or typed shortcuts that create a task outright instead of a note. */
+  function parseTaskCommand(text){
+    var t=(text||"").trim();
+    var m=/^(?:hey\s+)?(?:lucid[\s,:]+)?(?:please\s+)?(?:add|create|make|new)\s+(?:a\s+|an\s+)?(?:new\s+)?(?:task|to-?do|reminder)\s*(?:that|to|[:,\-\u2014])?\s+(.+)$/i.exec(t);
+    if(!m)m=/^(?:remind me to|remember to|note to self[\s,:\-]*)\s*(.+)$/i.exec(t);
+    if(!m)return null;
+    var body=(m[1]||"").trim().replace(/^[:,\-\u2014\s]+/,"").replace(/[.\s]+$/,"");
+    return body?cap(body):null;
+  }
+  /* If they named one of their businesses, file the task there. */
+  function guessVenture(text){
+    var low=(" "+text+" ").toLowerCase(),hit=null;
+    ventures.forEach(function(v){
+      var name=v.name.toLowerCase();
+      if(name.length>2&&low.indexOf(name)>=0&&(!hit||name.length>hit.name.length))hit=v;
+    });
+    return hit?hit.id:null;
+  }
   function finishRefine(raw){
     raw=(raw||"").trim();if(!raw){closeModals();return;}
+    var quick=parseTaskCommand(raw);
+    if(quick){
+      addTask(quick,guessVenture(raw));
+      closeModals();renderApp();toast("Task added \u00b7 "+quick.slice(0,28)+(quick.length>28?"\u2026":""));
+      return Promise.resolve();
+    }
     capPhase="refining";if(!refMsg)refMsg="Structuring your thought\u2026";renderCapture();
     return refine(raw,lens).then(function(r){
       var note={id:"n_"+Date.now(),createdAt:Date.now(),lens:lens,raw:raw};
@@ -1040,11 +1076,17 @@ body{font-family:'Inter',system-ui,sans-serif;background:radial-gradient(130% 55
       var addBits=addingTask
         ? '<div class="addtask-row" style="margin-top:8px"><input id="noteTaskInput" type="text" placeholder="What needs doing?" autocomplete="off" /><button class="pill-btn" id="noteTaskAdd">Add</button></div>'
         : '<button class="raw-toggle" id="addTaskBtn" style="margin-top:6px">'+I.plus(14)+'Add task</button>';
-      var acts='<div class="actions-block"><span class="block-label">Tasks</span>'+rows+addBits+'</div>';
+      var acts='<div class="actions-block"><span class="block-label">Tasks</span>'+(rows||'<p class="thread-empty" style="padding:2px 0 4px">No tasks yet.</p>')+addBits+'</div>';
+      var sugg="";
+      if(n.suggestions&&n.suggestions.length){
+        sugg='<div class="actions-block sugg-block"><span class="block-label">Suggested next steps</span>'
+          +n.suggestions.map(function(sx,i){return '<div class="sugg-row"><span class="sugg-text">'+esc(sx)+'</span><span class="sugg-btns"><button class="sugg-add" data-sugg="'+i+'" aria-label="Add as task">'+I.plus(14)+'Add</button><button class="sugg-no" data-nope="'+i+'" aria-label="Dismiss">'+I.x(13)+'</button></span></div>';}).join("")
+          +'</div>';
+      }
       var raw=showRaw?'<p class="raw-text">'+esc(n.raw)+'</p>':"";
       var fileRow='<div class="file-row"><span class="block-label">Business</span><div class="chips" id="folderChips"><button class="chip'+(!n.ventureId?" on":"")+'" data-fid="">Unfiled</button>'+ventures.map(function(v){return '<button class="chip'+(n.ventureId===v.id?" on":"")+'" data-fid="'+v.id+'">'+esc(v.name)+'</button>';}).join("")+'</div></div>';
       var deepLabel=(n.thread&&n.thread.length)?"Continue ("+n.thread.filter(function(m){return m.role==="user";}).length+")":"Go deeper";
-      document.getElementById("modals").innerHTML='<div class="scrim" id="detScrim"><div class="sheet" id="detSheet"><div class="grab"></div><div class="detail-head"><div style="min-width:0">'+(editingTitle?'<div class="newfolder-row" style="margin-bottom:0"><input id="titleInput" type="text" value="'+esc(n.title)+'" maxlength="70" /><button class="pill-btn" id="titleSave">Save</button></div>':'<span class="detail-project">'+esc(folderName(n))+'</span><h2 class="detail-title" id="titleTap">'+esc(n.title)+'</h2>')+'</div><button class="icon-btn" id="detClose">'+I.x(18)+'</button></div><div class="detail-body" style="'+(busy?"opacity:.4":"")+'">'+(n.thesis?'<p class="detail-thesis">'+esc(n.thesis)+'</p>':"")+pts+devs+acts+fileRow+'<button class="raw-toggle" id="rawToggle">'+I.chevron(14)+(showRaw?"Hide":"Show")+' what you said</button>'+raw+threadPanel(n)+'</div><div class="expand-row"><button class="listen-btn'+(speakingId===n.id?" playing":"")+'" id="listenBtn">'+(speakingId===n.id?I.stopc(15)+'Stop':I.play(15)+'Listen')+'</button><button class="expand-btn" id="goDeeper">'+I.expand(16)+deepLabel+'</button></div><div class="detail-actions"><button class="mini-btn" id="sharpen">'+I.refresh(15)+'Sharpen</button><button class="mini-btn" id="copy">'+I.copy(15)+'Copy</button>'+(confirmDel?'<button class="mini-btn danger on" id="del">'+I.trash(15)+'Sure?</button>':'<button class="mini-btn danger" id="del">'+I.trash(15)+'</button>')+'</div></div></div>';
+      document.getElementById("modals").innerHTML='<div class="scrim" id="detScrim"><div class="sheet" id="detSheet"><div class="grab"></div><div class="detail-head"><div style="min-width:0">'+(editingTitle?'<div class="newfolder-row" style="margin-bottom:0"><input id="titleInput" type="text" value="'+esc(n.title)+'" maxlength="70" /><button class="pill-btn" id="titleSave">Save</button></div>':'<span class="detail-project">'+esc(folderName(n))+'</span><h2 class="detail-title" id="titleTap">'+esc(n.title)+'</h2>')+'</div><button class="icon-btn" id="detClose">'+I.x(18)+'</button></div><div class="detail-body" style="'+(busy?"opacity:.4":"")+'">'+(n.thesis?'<p class="detail-thesis">'+esc(n.thesis)+'</p>':"")+pts+devs+sugg+acts+fileRow+'<button class="raw-toggle" id="rawToggle">'+I.chevron(14)+(showRaw?"Hide":"Show")+' what you said</button>'+raw+threadPanel(n)+'</div><div class="expand-row"><button class="listen-btn'+(speakingId===n.id?" playing":"")+'" id="listenBtn">'+(speakingId===n.id?I.stopc(15)+'Stop':I.play(15)+'Listen')+'</button><button class="expand-btn" id="goDeeper">'+I.expand(16)+deepLabel+'</button></div><div class="detail-actions"><button class="mini-btn" id="sharpen">'+I.refresh(15)+'Sharpen</button><button class="mini-btn" id="copy">'+I.copy(15)+'Copy</button>'+(confirmDel?'<button class="mini-btn danger on" id="del">'+I.trash(15)+'Sure?</button>':'<button class="mini-btn danger" id="del">'+I.trash(15)+'</button>')+'</div></div></div>';
       document.getElementById("detSheet").onclick=function(e){e.stopPropagation();};
       document.getElementById("detScrim").onclick=closeModals;
       document.getElementById("detClose").onclick=closeModals;
@@ -1055,6 +1097,20 @@ body{font-family:'Inter',system-ui,sans-serif;background:radial-gradient(130% 55
         var saveT=function(){var v=tIn.value.trim();if(v){n.title=v;saveNotes();renderApp();}editingTitle=false;render();};
         document.getElementById("titleSave").onclick=saveT;
         tIn.onkeydown=function(e){if(e.key==="Enter")saveT();else if(e.key==="Escape"){editingTitle=false;render();}};}
+      Array.prototype.forEach.call(document.querySelectorAll("#detSheet .sugg-add"),function(b){
+        b.onclick=function(){
+          var i=parseInt(b.getAttribute("data-sugg"),10);
+          var text=n.suggestions[i];if(!text)return;
+          n.suggestions.splice(i,1);addNoteTask(n.id,text);
+          saveNotes();render();renderApp();toast("Added to tasks");
+        };
+      });
+      Array.prototype.forEach.call(document.querySelectorAll("#detSheet .sugg-no"),function(b){
+        b.onclick=function(){
+          var i=parseInt(b.getAttribute("data-nope"),10);
+          if(isNaN(i))return;n.suggestions.splice(i,1);saveNotes();render();renderApp();
+        };
+      });
       var atb=document.getElementById("addTaskBtn");if(atb)atb.onclick=function(){addingTask=true;render();};
       var ati=document.getElementById("noteTaskInput");
       if(ati){ati.focus();
@@ -1089,6 +1145,7 @@ body{font-family:'Inter',system-ui,sans-serif;background:radial-gradient(130% 55
     out+=sec("Questions to answer",n.questions);
     out+=sec("Angles to consider",n.angles);
     out+=sec("Watch out for",n.risks);
+    out+=sec("Suggested next steps",n.suggestions);
     if(n.actions&&n.actions.length)out+="Tasks:\n"+n.actions.map(function(a){return (a.done?"[x] ":"[ ] ")+a.text;}).join("\n")+"\n\n";
     if(n.thread&&n.thread.length)out+="Deeper thinking:\n"+n.thread.map(function(m){return (m.role==="user"?"You: ":"Lucid: ")+m.text;}).join("\n\n")+"\n\n";
     return out+"\u2014 captured with Lucid";

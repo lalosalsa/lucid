@@ -1,8 +1,8 @@
 # Lucid Notes
 
-Think out loud, get it back sharp. Speak or type a rough thought and it comes
-back as a clean note — title, thesis, bullet points, and next actions — grouped
-into smart folders with the tasks pulled out for you.
+Think out loud, get it back sharper. Speak a rough thought and it comes back as
+a clean note — sharpened, pressure-tested with questions worth answering, and
+filed under the business or idea it's about.
 
 **How it works:** the browser records your voice → **Gemini Flash** transcribes
 it → **Claude** structures it, develops it, and files it under the business or
@@ -22,8 +22,22 @@ idea it's about. Typing skips the first two steps.
 - **"Where it stands."** Open a business and Lucid reads everything you've
   captured about it and tells you what's moving, what's stuck, and what deserves
   attention next.
-- **Tasks pulled out.** Next steps are extracted from your notes and grouped by
-  business in the Tasks tab.
+- **Tasks, on your terms.** Lucid *suggests* next steps from what you said, but
+  nothing lands on your task list until you tap Add. You can also type a task
+  straight into the Tasks tab, add one inside a note, or just say
+  *"add task: call the supplier"* and it's captured as a task instead of a note.
+
+## Running the UI test
+
+`test/e2e.js` drives the real app in a browser (tasks, businesses, suggestions,
+voice commands, persistence). Playwright is deliberately not a dependency, so:
+
+```bash
+npm i --no-save playwright
+npm start &            # serves on :3000
+PORT=3992 npm start &  # or point BASE at any running instance
+npm run test:e2e
+```
 
 ## Why there's a backend
 
@@ -59,12 +73,15 @@ Check `http://localhost:3000/api/health` — `keyConfigured` should be `true`.
 | ------------------- | ------------------- | -------------------------------------------------------------- |
 | `ANTHROPIC_API_KEY` | _(required)_        | Your Anthropic key. Without it, refinement falls back to local. |
 | `ANTHROPIC_MODEL`   | `claude-sonnet-4-6` | Model used to refine notes. Set `claude-opus-5` for more depth. |
+| `GEMINI_API_KEY`    | _(required for voice)_ | Google Gemini key for speech-to-text. Typing works without it. |
+| `GEMINI_MODEL`      | `gemini-2.5-flash`  | Model used to transcribe recorded audio.                       |
 | `PORT`              | `3000`              | Port to serve on.                                              |
 
 ## Notes about the app
 
-- **Voice capture** uses the browser's Web Speech API — best support is in
-  Chrome/Edge and Safari. Where it's unavailable the app offers a text box.
+- **Voice capture** records audio with `MediaRecorder` (works in every modern
+  browser) and transcribes it server-side via Gemini. If the mic is unavailable
+  or blocked, the app offers a text box instead.
 - **Read aloud** uses the browser's speech synthesis.
 - **Your notes stay on your device** — they're saved in `localStorage`. Settings
   → "Back up to a file" exports everything; "Restore from a file" imports it.
