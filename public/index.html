@@ -221,6 +221,15 @@ body{font-family:'Inter',system-ui,sans-serif;background:radial-gradient(130% 55
 .mini-btn.danger{flex:none;width:46px;color:var(--muted);}
 .mini-btn.danger.on{flex:1;color:#ff8a8a;border-color:#ff8a8a44;background:#ff8a8a14;}
 
+.addtask-row{display:flex;gap:7px;align-items:center;margin-bottom:14px;}
+.addtask-row input{flex:1;background:var(--surface);border:1px solid var(--line);border-radius:13px;padding:12px 13px;color:var(--text);font-size:14px;outline:none;font-family:'Inter',sans-serif;min-width:0;transition:border-color .15s;}
+.addtask-row input:focus{border-color:var(--accent-line);}
+.addtask-row input::placeholder{color:var(--faint);}
+.addtask-row .pill-btn{display:flex;align-items:center;justify-content:center;padding:11px 14px;}
+.solo-del{flex:none;background:none;border:none;color:var(--faint);cursor:pointer;padding:2px 0 0 4px;display:flex;align-items:flex-start;}
+.solo-del:hover{color:#ff8a8a;}
+.detail-title{cursor:text;}
+
 /* businesses (ventures) */
 .vcard{display:flex;align-items:stretch;background:var(--surface);border:1px solid var(--line-soft);border-radius:18px;margin-bottom:11px;overflow:hidden;transition:border-color .15s;}
 .vcard:hover{border-color:var(--accent-line);}
@@ -342,12 +351,12 @@ body{font-family:'Inter',system-ui,sans-serif;background:radial-gradient(130% 55
     meeting:{label:"Meeting",hint:"Decisions and owners.",guide:"Treat this as a debrief. Pull out decisions made, owners, and follow-ups. Points read like a record; actions name who does what if the speaker said it."}
   };
 
-  var notes=[], folders=[], ventures=[], manualOrder=[], sortMode="newest", projOrder=[], lens="operator", lensMenuOpen=false, view="library", libTab="notes", query="", activeProject=null, activeFolderId=null, activeVentureId=null, creatingFolder=false, creatingVenture=false, standups={}, KEY="lucid:notes:v1";
+  var notes=[], folders=[], ventures=[], tasks=[], manualOrder=[], sortMode="newest", projOrder=[], lens="operator", lensMenuOpen=false, view="library", libTab="notes", query="", activeProject=null, activeFolderId=null, activeVentureId=null, creatingFolder=false, creatingVenture=false, standups={}, KEY="lucid:notes:v1";
 
   /* storage */
   function applyState(st){
     if(Array.isArray(st)){notes=st;}
-    else if(st&&typeof st==="object"){notes=st.notes||[];folders=st.folders||[];ventures=st.ventures||[];standups=st.standups||{};manualOrder=st.manualOrder||[];sortMode=st.sortMode||"newest";}
+    else if(st&&typeof st==="object"){notes=st.notes||[];folders=st.folders||[];ventures=st.ventures||[];tasks=st.tasks||[];standups=st.standups||{};manualOrder=st.manualOrder||[];sortMode=st.sortMode||"newest";}
   }
   function applyLocal(){try{var s=localStorage.getItem(KEY);if(s)applyState(JSON.parse(s));}catch(e){}}
   function loadNotes(cb){
@@ -356,7 +365,7 @@ body{font-family:'Inter',system-ui,sans-serif;background:radial-gradient(130% 55
     }
     applyLocal();cb();
   }
-  function stateObj(){return {notes:notes,folders:folders,ventures:ventures,standups:standups,manualOrder:manualOrder,sortMode:sortMode};}
+  function stateObj(){return {notes:notes,folders:folders,ventures:ventures,tasks:tasks,standups:standups,manualOrder:manualOrder,sortMode:sortMode};}
   function saveNotes(){var s=JSON.stringify(stateObj());if(window.storage&&window.storage.set){try{window.storage.set(KEY,s);return;}catch(e){}}try{localStorage.setItem(KEY,s);}catch(e){}}
   function ensureOrder(){var ids={};notes.forEach(function(n){ids[n.id]=1;});manualOrder=manualOrder.filter(function(id){return ids[id];});notes.forEach(function(n){if(manualOrder.indexOf(n.id)<0)manualOrder.push(n.id);});}
 
@@ -403,7 +412,15 @@ body{font-family:'Inter',system-ui,sans-serif;background:radial-gradient(130% 55
     if(sentences.length<=1)sentences=clean.split(/,\s+|\s+(?:and then|and|then|also|plus)\s+/i).filter(Boolean);
     var thesis=sentences[0]||clean.slice(0,140);
     var points=sentences.slice(1,6).map(function(s){return s.replace(/^(and|so|but|um|uh|like|okay|ok|yeah)\s+/i,"").trim();}).filter(function(s){return s.length>2;}).map(cap);
-    var words=clean.split(" ").filter(Boolean).slice(0,5).join(" ").replace(/[.,!?]$/,"");
+    var STOP=("the a an and so but or i we you they he she it me us them my our your its "+
+      "is am are was were be been being do does did done have has had "+
+      "to of for with from by at in on as if when then there here that this these those "+
+      "just like um uh ok okay yeah right really kinda sorta gonna wanna maybe "+
+      "think thinking about should would could will can want wanna need got get going "+
+      "thing things stuff lot really very much more").split(" ");
+    var stop={};STOP.forEach(function(w){stop[w]=1;});
+    var picked=clean.replace(/[^\w\s']/g," ").split(/\s+/).filter(function(w){return w&&!stop[w.toLowerCase()];}).slice(0,5).join(" ");
+    var words=picked||clean.split(" ").filter(Boolean).slice(0,5).join(" ").replace(/[.,!?]$/,"");
     return {title:cap(words||"Quick note"),project:"Inbox",thesis:cap(thesis),points:points,questions:[],angles:[],risks:[],actions:[],offline:true};
   }
   function cap(s){return s?s.charAt(0).toUpperCase()+s.slice(1):s;}
@@ -413,7 +430,20 @@ body{font-family:'Inter',system-ui,sans-serif;background:radial-gradient(130% 55
   function esc(s){var d=document.createElement("div");d.textContent=s==null?"":s;return d.innerHTML;}
   function toast(msg){var t=document.getElementById("toast");t.innerHTML='<div class="toast">'+esc(msg)+'</div>';setTimeout(function(){t.innerHTML="";},1800);}
   function find(id){for(var i=0;i<notes.length;i++){if(notes[i].id===id)return notes[i];}return null;}
-  function openCount(){var c=0;notes.forEach(function(n){(n.actions||[]).forEach(function(a){if(!a.done)c++;});});return c;}
+  function openCount(){var c=0;notes.forEach(function(n){(n.actions||[]).forEach(function(a){if(!a.done)c++;});});tasks.forEach(function(t){if(!t.done)c++;});return c;}
+  function addTask(text,ventureId){
+    text=(text||"").trim();if(!text)return null;
+    var t={id:"t_"+Date.now()+"_"+Math.floor(Math.random()*999),text:text,done:false,ventureId:ventureId||null,createdAt:Date.now()};
+    tasks.unshift(t);saveNotes();return t;
+  }
+  function toggleSolo(id){for(var i=0;i<tasks.length;i++){if(tasks[i].id===id){tasks[i].done=!tasks[i].done;break;}}saveNotes();}
+  function deleteSolo(id){tasks=tasks.filter(function(t){return t.id!==id;});saveNotes();}
+  function addNoteTask(noteId,text){
+    var n=find(noteId);if(!n)return;text=(text||"").trim();if(!text)return;
+    if(!Array.isArray(n.actions))n.actions=[];
+    n.actions.push({id:"a_"+noteId+"_m"+Date.now(),text:text,done:false});
+    saveNotes();
+  }
 
   function toggleTask(noteId,actId){var n=find(noteId);if(!n||!n.actions)return;for(var i=0;i<n.actions.length;i++){if(n.actions[i].id===actId){n.actions[i].done=!n.actions[i].done;break;}}saveNotes();}
 
@@ -453,6 +483,7 @@ body{font-family:'Inter',system-ui,sans-serif;background:radial-gradient(130% 55
       q+=(n.questions||[]).length;
       if(n.createdAt>last)last=n.createdAt;
     });
+    tasks.forEach(function(t){if(t.ventureId===id&&!t.done)open++;});
     return {notes:list.length,open:open,questions:q,last:last};
   }
   function sortedNotes(){
@@ -746,6 +777,182 @@ body{font-family:'Inter',system-ui,sans-serif;background:radial-gradient(130% 55
     var feed=document.getElementById("feed");
     var sorted=notes.slice().sort(function(a,b){return b.createdAt-a.createdAt;});
     var groups={},order=[],doneItems=[],anyTask=false;
+    function bucket(label,item,done){
+      anyTask=true;
+      if(done){doneItems.push(item);return;}
+      if(!groups[label]){groups[label]=[];order.push(label);}
+      groups[label].push(item);
+    }
+    /* tasks you typed in directly */
+    tasks.forEach(function(t){
+      var v=t.ventureId?ventureById(t.ventureId):null;
+      bucket(v?v.name:"Unfiled",{solo:t},t.done);
+    });
+    /* tasks pulled out of what you said */
+    sorted.forEach(function(n){(n.actions||[]).forEach(function(a){bucket(ventureLabel(n),{n:n,a:a},a.done);});});
+
+    var addRow='<div class="addtask-row">'
+      +'<input id="newTask" type="text" placeholder="Add a task\u2026" autocomplete="off" />'
+      +(ventures.length?'<select id="newTaskV" class="kind-select"><option value="">Unfiled</option>'+ventures.map(function(v){return '<option value="'+v.id+'">'+esc(v.name)+'</option>';}).join("")+'</select>':'')
+      +'<button class="pill-btn" id="newTaskAdd">'+I.plus(15)+'</button></div>';
+
+    var html=addRow;
+    if(!anyTask){
+      html+='<div class="empty-state"><span class="badge lg">'+I.checklist(32)+'</span><h2>No tasks yet</h2><p>Type one above, or capture a thought \u2014 Lucid pulls the next steps out of what you said and lists them here.</p></div>';
+    } else {
+      if(order.length===0)html+='<div class="empty-state" style="padding:34px 24px 20px"><span class="badge lg" style="background:linear-gradient(158deg,#7ee0b3,#4bc593)">'+I.check(30)+'</span><h2>All clear</h2><p>Every task is done.</p></div>';
+      order.forEach(function(g){
+        html+='<div class="grp"><div class="grp-h"><span class="grp-name">'+esc(g)+'</span><span class="grp-line"></span><span class="grp-count">'+groups[g].length+'</span></div>';
+        groups[g].forEach(function(it){html+=it.solo?soloRow(it.solo):taskRow(it.n,it.a);});
+        html+='</div>';
+      });
+      if(doneItems.length){
+        html+='<div class="grp done-grp"><div class="grp-h"><span class="grp-name">Completed</span><span class="grp-line"></span><span class="grp-count">'+doneItems.length+'</span></div>';
+        doneItems.forEach(function(it){html+=it.solo?soloRow(it.solo):taskRow(it.n,it.a);});
+        html+='</div>';
+      }
+    }
+    html+='<div class="feed-pad"></div>';
+    feed.innerHTML=html;
+
+    var inp=document.getElementById("newTask"),sel=document.getElementById("newTaskV");
+    function commit(){
+      if(!inp)return;var v=inp.value;if(!v.trim())return;
+      addTask(v,sel?sel.value:null);inp.value="";renderApp();
+      var again=document.getElementById("newTask");if(again)again.focus();
+    }
+    document.getElementById("newTaskAdd").onclick=commit;
+    if(inp)inp.onkeydown=function(e){if(e.key==="Enter")commit();};
+
+    Array.prototype.forEach.call(feed.querySelectorAll(".tcheck"),function(b){
+      b.onclick=function(e){
+        e.stopPropagation();
+        var solo=b.getAttribute("data-solo");
+        if(solo)toggleSolo(solo);else toggleTask(b.getAttribute("data-note"),b.getAttribute("data-act"));
+        renderApp();
+      };
+    });
+    Array.prototype.forEach.call(feed.querySelectorAll(".task-main"),function(b){b.onclick=function(){openDetail(b.getAttribute("data-open"));};});
+    Array.prototype.forEach.call(feed.querySelectorAll(".solo-del"),function(b){b.onclick=function(e){e.stopPropagation();deleteSolo(b.getAttribute("data-del"));renderApp();};});
+  }
+  function taskRow(n,a){
+    return '<div class="task-row'+(a.done?" done":"")+'">'
+      +'<button class="tcheck'+(a.done?" on":"")+'" data-note="'+n.id+'" data-act="'+a.id+'" aria-label="Toggle task">'+(a.done?I.check(13):"")+'</button>'
+      +'<button class="task-main" data-open="'+n.id+'"><span class="task-text">'+esc(a.text)+'</span><span class="task-src">'+esc(n.title)+'</span></button></div>';
+  }
+  function soloRow(t){
+    return '<div class="task-row'+(t.done?" done":"")+'">'
+      +'<button class="tcheck'+(t.done?" on":"")+'" data-solo="'+t.id+'" aria-label="Toggle task">'+(t.done?I.check(13):"")+'</button>'
+      +'<span class="task-main" style="cursor:default"><span class="task-text">'+esc(t.text)+'</span><span class="task-src">added by you</span></span>'
+      +'<button class="solo-del" data-del="'+t.id+'" aria-label="Delete task">'+I.x(14)+'</button></div>';
+  }
+
+  /* ---- one business: where it stands + its notes ---- */
+  var renamingVenture=false,standupBusy=false;
+  function renderVentureDetail(){
+    var feed=document.getElementById("feed");
+    var v=activeVentureId?ventureById(activeVentureId):null;
+    if(activeVentureId&&!v){view="library";libTab="ventures";renderLibrary();return;}
+    var list=(v?notesInVenture(v.id):unfiledNotes()).sort(function(a,b){return b.createdAt-a.createdAt;});
+    var html='<button class="backrow" id="backBtn">'+I.back(15)+'All businesses</button>';
+    if(v){
+      html+= renamingVenture
+        ? '<div class="newfolder-row" style="margin-bottom:14px"><input id="renInput" type="text" value="'+esc(v.name)+'" maxlength="40" /><select id="renKind" class="kind-select"><option value="running"'+(v.kind!=="idea"?" selected":"")+'>Running</option><option value="idea"'+(v.kind==="idea"?" selected":"")+'>Idea</option></select><button class="pill-btn ghost" id="renCancel">Cancel</button><button class="pill-btn" id="renSave">Save</button></div>'
+        : '<div class="folder-tools"><button class="mini-btn" id="renBtn">'+I.pencil(14)+'Rename</button><button class="mini-btn" id="standBtn">'+I.zap(14)+(standups[v.id]?"Refresh read":"Where it stands")+'</button><button class="mini-btn danger" id="delVBtn">'+I.trash(14)+'</button></div>';
+      html+=standupHTML(v);
+    }
+    if(list.length===0)html+='<div class="lib-empty">No notes here yet. Capture a thought about this business and it lands here.</div>';
+    else list.forEach(function(n){html+=cardHTML(n,false);});
+    html+='<div class="feed-pad"></div>';
+    feed.innerHTML=html;
+    document.getElementById("backBtn").onclick=function(){renamingVenture=false;view="library";libTab="ventures";renderApp();};
+    bindCards(feed);
+    var rb=document.getElementById("renBtn");if(rb)rb.onclick=function(){renamingVenture=true;renderVentureDetail();};
+    var sb=document.getElementById("standBtn");if(sb)sb.onclick=function(){runStandup(v,list);};
+    var db=document.getElementById("delVBtn");
+    if(db)db.onclick=function(){
+      notes.forEach(function(n){if(n.ventureId===v.id)n.ventureId=null;});
+      ventures=ventures.filter(function(x){return x.id!==v.id;});
+      delete standups[v.id];saveNotes();renamingVenture=false;view="library";libTab="ventures";renderApp();toast("Business removed \u00b7 notes kept");
+    };
+    var ri=document.getElementById("renInput");
+    if(ri){ri.focus();
+      var save=function(){var val=ri.value.trim();if(val){v.name=val;v.kind=document.getElementById("renKind").value==="idea"?"idea":"running";saveNotes();}renamingVenture=false;renderVentureDetail();setHeader();};
+      document.getElementById("renSave").onclick=save;
+      document.getElementById("renCancel").onclick=function(){renamingVenture=false;renderVentureDetail();};
+      ri.onkeydown=function(e){if(e.key==="Enter")save();else if(e.key==="Escape"){renamingVenture=false;renderVentureDetail();}};}
+  }
+  function standupHTML(v){
+    if(standupBusy)return '<div class="stand-block"><span class="block-label">Where it stands</span><p class="stand-lead" style="color:var(--muted)">Reading everything you\u2019ve captured\u2026</p></div>';
+    var st=standups[v.id];if(!st)return "";
+    function sec(label,items,cls){
+      if(!items||!items.length)return "";
+      return '<div class="dev-block '+cls+'" style="margin-top:14px"><span class="block-label">'+label+'</span><ul class="dev-list">'+items.map(function(x){return '<li>'+esc(x)+'</li>';}).join("")+'</ul></div>';
+    }
+    return '<div class="stand-block"><span class="block-label">Where it stands</span>'
+      +(st.stands?'<p class="stand-lead">'+esc(st.stands)+'</p>':"")
+      +sec("Moving",st.moving,"a")+sec("Stuck",st.stuck,"r")+sec("Focus next",st.focus,"q")
+      +'</div>';
+  }
+  function runStandup(v,list){
+    if(!v||standupBusy)return;
+    standupBusy=true;renderVentureDetail();
+    var payload=list.slice().sort(function(a,b){return a.createdAt-b.createdAt;}).map(function(n){
+      return {createdAt:n.createdAt,title:n.title,thesis:n.thesis,points:n.points||[],questions:n.questions||[],risks:n.risks||[],actions:(n.actions||[]).map(function(a){return {text:a.text,done:!!a.done};})};
+    });
+    fetch("/api/standup",{method:"POST",headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({venture:{name:v.name,kind:v.kind},notes:payload})})
+    .then(function(res){if(!res.ok)throw new Error("standup_"+res.status);return res.json();})
+    .then(function(j){standups[v.id]=j;saveNotes();})
+    .catch(function(err){console.error("[standup]",err);toast("Couldn\u2019t read this one right now");})
+    .then(function(){standupBusy=false;renderVentureDetail();});
+  }
+  function bindCards(scope){
+    Array.prototype.forEach.call(scope.querySelectorAll(".card"),function(c){c.onclick=function(){openDetail(c.getAttribute("data-id"));};});
+    Array.prototype.forEach.call(scope.querySelectorAll(".card-play"),function(b){
+      b.onclick=function(e){e.stopPropagation();var n=find(b.getAttribute("data-play"));if(n)speakNote(n,function(){renderApp();});};
+    });
+  }
+  function noteMatches(n,q){var hay=((n.title||"")+" "+(n.thesis||"")+" "+(n.project||"")+" "+ventureLabel(n)+" "+((n.points||[]).join(" "))+" "+((n.actions||[]).map(function(a){return a.text;}).join(" "))+" "+(n.raw||"")).toLowerCase();return hay.indexOf(q)>=0;}
+  function cardHTML(n,showFolder){
+    var oc=(n.actions||[]).filter(function(a){return !a.done;}).length;
+    var meta="";
+    var qc=(n.questions||[]).length;
+    if(showFolder||oc>0||qc>0||n.offline){meta='<div class="card-meta">';if(showFolder)meta+='<span class="meta-proj">'+esc(folderName(n))+'</span>';if(oc>0)meta+='<span class="meta-act">'+oc+' open '+(oc===1?"task":"tasks")+'</span>';if(qc>0)meta+='<span class="meta-q">'+qc+' '+(qc===1?"question":"questions")+'</span>';if(n.offline)meta+='<span class="meta-quick">quick format</span>';meta+='</div>';}
+    return '<div class="card" data-id="'+n.id+'"><div class="card-top"><span class="card-title">'+esc(n.title)+'</span><span class="card-right"><span class="card-time">'+timeAgo(n.createdAt)+'</span><button class="card-play'+(speakingId===n.id?" playing":"")+'" data-play="'+n.id+'" aria-label="Read this note aloud">'+(speakingId===n.id?I.stopc(11):I.play(11))+'</button></span></div>'+(n.thesis?'<p class="card-thesis">'+esc(n.thesis)+'</p>':"")+meta+'</div>';
+  }
+  function mcardHTML(n){
+    return '<div class="mcard" data-id="'+n.id+'"><button class="grip" aria-label="Drag to reorder">'+I.grip(18)+'</button><button class="mcard-body" data-id="'+n.id+'"><div class="card-top"><span class="card-title">'+esc(n.title)+'</span><span class="card-time">'+timeAgo(n.createdAt)+'</span></div>'+(n.thesis?'<p class="card-thesis">'+esc(n.thesis)+'</p>':"")+'<div class="card-meta"><span class="meta-proj">'+esc(folderName(n))+'</span></div></button></div>';
+  }
+  function bindManualDrag(container){
+    if(!container)return;
+    Array.prototype.forEach.call(container.querySelectorAll(".grip"),function(handle){
+      handle.addEventListener("pointerdown",function(e){
+        e.preventDefault();
+        var card=handle.parentNode;
+        card.classList.add("drag");
+        try{handle.setPointerCapture(e.pointerId);}catch(_){}
+        function move(ev){
+          var y=ev.clientY,others=container.querySelectorAll(".mcard:not(.drag)"),placed=false;
+          for(var i=0;i<others.length;i++){var r=others[i].getBoundingClientRect();if(y<r.top+r.height/2){container.insertBefore(card,others[i]);placed=true;break;}}
+          if(!placed)container.appendChild(card);
+        }
+        function up(){
+          card.classList.remove("drag");
+          try{handle.releasePointerCapture(e.pointerId);}catch(_){}
+          handle.removeEventListener("pointermove",move);handle.removeEventListener("pointerup",up);
+          var ids=[];Array.prototype.forEach.call(container.querySelectorAll(".mcard"),function(c){ids.push(c.getAttribute("data-id"));});
+          manualOrder=ids;saveNotes();
+        }
+        handle.addEventListener("pointermove",move);handle.addEventListener("pointerup",up);
+      });
+    });
+  }
+
+  function renderTasks(){
+    var feed=document.getElementById("feed");
+    var sorted=notes.slice().sort(function(a,b){return b.createdAt-a.createdAt;});
+    var groups={},order=[],doneItems=[],anyTask=false;
     sorted.forEach(function(n){(n.actions||[]).forEach(function(a){anyTask=true;if(a.done){doneItems.push({n:n,a:a});return;}var p=ventureLabel(n);if(!groups[p]){groups[p]=[];order.push(p);}groups[p].push({n:n,a:a});});});
     if(!anyTask){feed.innerHTML='<div class="empty-state"><span class="badge lg">'+I.checklist(32)+'</span><h2>No tasks yet</h2><p>Capture a thought and Lucid pulls the next steps out of it \u2014 they\u2019ll show up here to check off.</p></div><div class="feed-pad"></div>';return;}
     var html="";
@@ -930,7 +1137,7 @@ body{font-family:'Inter',system-ui,sans-serif;background:radial-gradient(130% 55
     return {title:n.title,thesis:n.thesis,points:n.points||[],questions:n.questions||[],angles:n.angles||[],risks:n.risks||[],actions:(n.actions||[]).map(function(a){return a.text;}),raw:n.raw};
   }
   function openDetail(id){
-    var showRaw=false,confirmDel=false,busy=false,showThread=false,devBusy=false;
+    var showRaw=false,confirmDel=false,busy=false,showThread=false,devBusy=false,editingTitle=false,addingTask=false;
     function threadPanel(n){
       if(!showThread)return "";
       var msgs=(n.thread||[]).map(function(m){return '<div class="msg '+(m.role==="user"?"me":"ai")+'">'+esc(m.text)+'</div>';}).join("");
@@ -959,18 +1166,31 @@ body{font-family:'Inter',system-ui,sans-serif;background:radial-gradient(130% 55
       var n=find(id);if(!n){closeModals();return;}
       var pts=n.points&&n.points.length?'<span class="block-label">What you said</span><ul class="points">'+n.points.map(function(p){return '<li><span class="bullet"></span>'+esc(p)+'</li>';}).join("")+'</ul>':"";
       var devs=devSection("Questions to answer",n.questions,"q")+devSection("Angles to consider",n.angles,"a")+devSection("Watch out for",n.risks,"r");
-      var acts="";
-      if(n.actions&&n.actions.length){
-        acts='<div class="actions-block"><span class="block-label">Tasks</span>'+n.actions.map(function(a){return '<button class="action-row taskbtn'+(a.done?" done":"")+'" data-act="'+a.id+'"><span class="acheck'+(a.done?" on":"")+'">'+(a.done?I.check(12):"")+'</span><span>'+esc(a.text)+'</span></button>';}).join("")+'</div>';
-      }
+      var rows=(n.actions||[]).map(function(a){return '<button class="action-row taskbtn'+(a.done?" done":"")+'" data-act="'+a.id+'"><span class="acheck'+(a.done?" on":"")+'">'+(a.done?I.check(12):"")+'</span><span>'+esc(a.text)+'</span></button>';}).join("");
+      var addBits=addingTask
+        ? '<div class="addtask-row" style="margin-top:8px"><input id="noteTaskInput" type="text" placeholder="What needs doing?" autocomplete="off" /><button class="pill-btn" id="noteTaskAdd">Add</button></div>'
+        : '<button class="raw-toggle" id="addTaskBtn" style="margin-top:6px">'+I.plus(14)+'Add task</button>';
+      var acts='<div class="actions-block"><span class="block-label">Tasks</span>'+rows+addBits+'</div>';
       var raw=showRaw?'<p class="raw-text">'+esc(n.raw)+'</p>':"";
       var fileRow='<div class="file-row"><span class="block-label">Business</span><div class="chips" id="folderChips"><button class="chip'+(!n.ventureId?" on":"")+'" data-fid="">Unfiled</button>'+ventures.map(function(v){return '<button class="chip'+(n.ventureId===v.id?" on":"")+'" data-fid="'+v.id+'">'+esc(v.name)+'</button>';}).join("")+'</div></div>';
       var deepLabel=(n.thread&&n.thread.length)?"Continue ("+n.thread.filter(function(m){return m.role==="user";}).length+")":"Go deeper";
-      document.getElementById("modals").innerHTML='<div class="scrim" id="detScrim"><div class="sheet" id="detSheet"><div class="grab"></div><div class="detail-head"><div><span class="detail-project">'+esc(folderName(n))+'</span><h2 class="detail-title">'+esc(n.title)+'</h2></div><button class="icon-btn" id="detClose">'+I.x(18)+'</button></div><div class="detail-body" style="'+(busy?"opacity:.4":"")+'">'+(n.thesis?'<p class="detail-thesis">'+esc(n.thesis)+'</p>':"")+pts+devs+acts+fileRow+'<button class="raw-toggle" id="rawToggle">'+I.chevron(14)+(showRaw?"Hide":"Show")+' what you said</button>'+raw+threadPanel(n)+'</div><div class="expand-row"><button class="listen-btn'+(speakingId===n.id?" playing":"")+'" id="listenBtn">'+(speakingId===n.id?I.stopc(15)+'Stop':I.play(15)+'Listen')+'</button><button class="expand-btn" id="goDeeper">'+I.expand(16)+deepLabel+'</button></div><div class="detail-actions"><button class="mini-btn" id="sharpen">'+I.refresh(15)+'Sharpen</button><button class="mini-btn" id="copy">'+I.copy(15)+'Copy</button>'+(confirmDel?'<button class="mini-btn danger on" id="del">'+I.trash(15)+'Sure?</button>':'<button class="mini-btn danger" id="del">'+I.trash(15)+'</button>')+'</div></div></div>';
+      document.getElementById("modals").innerHTML='<div class="scrim" id="detScrim"><div class="sheet" id="detSheet"><div class="grab"></div><div class="detail-head"><div style="min-width:0">'+(editingTitle?'<div class="newfolder-row" style="margin-bottom:0"><input id="titleInput" type="text" value="'+esc(n.title)+'" maxlength="70" /><button class="pill-btn" id="titleSave">Save</button></div>':'<span class="detail-project">'+esc(folderName(n))+'</span><h2 class="detail-title" id="titleTap">'+esc(n.title)+'</h2>')+'</div><button class="icon-btn" id="detClose">'+I.x(18)+'</button></div><div class="detail-body" style="'+(busy?"opacity:.4":"")+'">'+(n.thesis?'<p class="detail-thesis">'+esc(n.thesis)+'</p>':"")+pts+devs+acts+fileRow+'<button class="raw-toggle" id="rawToggle">'+I.chevron(14)+(showRaw?"Hide":"Show")+' what you said</button>'+raw+threadPanel(n)+'</div><div class="expand-row"><button class="listen-btn'+(speakingId===n.id?" playing":"")+'" id="listenBtn">'+(speakingId===n.id?I.stopc(15)+'Stop':I.play(15)+'Listen')+'</button><button class="expand-btn" id="goDeeper">'+I.expand(16)+deepLabel+'</button></div><div class="detail-actions"><button class="mini-btn" id="sharpen">'+I.refresh(15)+'Sharpen</button><button class="mini-btn" id="copy">'+I.copy(15)+'Copy</button>'+(confirmDel?'<button class="mini-btn danger on" id="del">'+I.trash(15)+'Sure?</button>':'<button class="mini-btn danger" id="del">'+I.trash(15)+'</button>')+'</div></div></div>';
       document.getElementById("detSheet").onclick=function(e){e.stopPropagation();};
       document.getElementById("detScrim").onclick=closeModals;
       document.getElementById("detClose").onclick=closeModals;
       document.getElementById("rawToggle").onclick=function(){showRaw=!showRaw;render();};
+      var tTap=document.getElementById("titleTap");if(tTap)tTap.onclick=function(){editingTitle=true;render();};
+      var tIn=document.getElementById("titleInput");
+      if(tIn){tIn.focus();tIn.select();
+        var saveT=function(){var v=tIn.value.trim();if(v){n.title=v;saveNotes();renderApp();}editingTitle=false;render();};
+        document.getElementById("titleSave").onclick=saveT;
+        tIn.onkeydown=function(e){if(e.key==="Enter")saveT();else if(e.key==="Escape"){editingTitle=false;render();}};}
+      var atb=document.getElementById("addTaskBtn");if(atb)atb.onclick=function(){addingTask=true;render();};
+      var ati=document.getElementById("noteTaskInput");
+      if(ati){ati.focus();
+        var addA=function(){var v=ati.value.trim();if(v){addNoteTask(n.id,v);renderApp();}addingTask=false;render();};
+        document.getElementById("noteTaskAdd").onclick=addA;
+        ati.onkeydown=function(e){if(e.key==="Enter")addA();else if(e.key==="Escape"){addingTask=false;render();}};}
       document.getElementById("copy").onclick=function(){try{navigator.clipboard.writeText(noteToText(n));}catch(e){}toast("Copied to clipboard");};
       document.getElementById("listenBtn").onclick=function(){speakNote(n,function(){render();});};
       document.getElementById("goDeeper").onclick=function(){showThread=!showThread;render();};
