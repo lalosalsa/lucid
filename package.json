@@ -2,10 +2,11 @@
   "name": "lucid-notes",
   "version": "1.0.0",
   "private": true,
-  "description": "Think out loud, get it back sharp — voice-to-structured-note capture powered by Claude.",
+  "description": "Think out loud, get it back sharp \u2014 voice-to-structured-note capture powered by Claude.",
   "main": "server.js",
   "scripts": {
-    "start": "node server.js"
+    "start": "node server.js",
+    "test:e2e": "node test/e2e.js"
   },
   "engines": {
     "node": ">=18"
