@@ -23,6 +23,9 @@ idea it's about. Typing skips the first two steps.
 - **Organized by business.** Notes route themselves to the venture they're
   about — a company you're running or an idea you're exploring. Businesses can
   be renamed, reordered by dragging, and notes can be sorted by business.
+- **Folders, if you want them.** A second, freeform grouping for your own
+  categories — a quarter, a client, a project. Create, rename, reorder and file
+  notes into folders independently of which business they belong to.
 - **"Where it stands."** Open a business and Lucid reads everything you've
   captured about it and tells you what's moving, what's stuck, and what deserves
   attention next.
@@ -30,6 +33,7 @@ idea it's about. Typing skips the first two steps.
   nothing lands on your task list until you tap Add. You can also type a task
   straight into the Tasks tab, add one inside a note, or just say
   *"add task: call the supplier"* and it's captured as a task instead of a note.
+  Once a task is checked off, an × appears to remove it for good.
 
 ## Running the UI test
 

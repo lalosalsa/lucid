@@ -237,13 +237,68 @@ function check(name, ok, extra) {
     check("captured text saved without AI", t2.some((t) => t.includes("truck lease")), JSON.stringify(t2));
   }
 
+  // ---- 6d. completed tasks can be removed
+  await page.locator('[data-view="tasks"]').click();
+  await page.waitForTimeout(200);
+  const beforeDel = (await page.locator(".task-text").allInnerTexts()).length;
+  check("no delete on an open task", (await page.locator('.solo-del[data-delnote]').count()) === 0);
+  const noteCheck = page.locator('.tcheck[data-note]').first();
+  await noteCheck.click();
+  await page.waitForTimeout(250);
+  check("delete appears once done", (await page.locator('.solo-del[data-delnote]').count()) >= 1);
+  await page.locator('.solo-del[data-delnote]').first().click();
+  await page.waitForTimeout(250);
+  check("completed task removed", (await page.locator(".task-text").allInnerTexts()).length === beforeDel - 1);
+
+  // ---- 6e. folders
+  await page.locator('[data-view="library"]').click();
+  await page.waitForTimeout(150);
+  await page.locator('[data-seg="folders"]').click();
+  await page.waitForTimeout(200);
+  check("folders tab opens", await page.locator("#newFolderBtn").isVisible());
+  await page.locator("#newFolderBtn").click();
+  await page.locator("#folderNameInput").fill("Q2 planning");
+  await page.locator("#folderAdd").click();
+  await page.waitForTimeout(250);
+  check("folder created", (await page.locator(".vcard .proj-name").allInnerTexts()).includes("Q2 planning"));
+  await page.locator("[data-openf]").first().click();
+  await page.waitForTimeout(200);
+  check("folder detail opens", await page.locator("#fRenBtn").isVisible());
+  await page.locator("#fRenBtn").click();
+  await page.locator("#fRenInput").fill("Q2 push");
+  await page.locator("#fRenSave").click();
+  await page.waitForTimeout(250);
+  await page.locator("#backBtn").click();
+  await page.waitForTimeout(200);
+  check("folder renamed", (await page.locator(".vcard .proj-name").allInnerTexts()).includes("Q2 push"));
+
+  // file a note into the folder from the note detail
+  await page.locator('[data-seg="notes"]').click();
+  await page.waitForTimeout(200);
+  await page.locator(".card").first().click();
+  await page.waitForTimeout(250);
+  check("folder picker in note", (await page.locator("#noteFolderChips .chip").count()) >= 2);
+  await page.locator('#noteFolderChips .chip[data-nfid]:not([data-nfid=""])').first().click();
+  await page.waitForTimeout(250);
+  await page.locator("#detClose").click();
+  await page.waitForTimeout(200);
+  await page.locator('[data-seg="folders"]').click();
+  await page.waitForTimeout(200);
+  await page.locator("[data-openf]").first().click();
+  await page.waitForTimeout(250);
+  check("note appears in folder", (await page.locator(".card").count()) >= 1);
+  await page.locator("#backBtn").click();
+  await page.waitForTimeout(150);
+  await page.locator('[data-seg="notes"]').click();
+  await page.waitForTimeout(150);
+
   // ---- 7. persistence across reload
   await page.reload({ waitUntil: "networkidle" });
   await page.waitForTimeout(200);
   await page.locator('[data-view="tasks"]').click();
   await page.waitForTimeout(150);
   const after = await page.locator(".task-text").allInnerTexts();
-  check("data persists after reload", after.some((t) => t.includes("mulch")) && after.some((t) => t.toLowerCase().includes("churn")), JSON.stringify(after));
+  check("data persists after reload", after.some((t) => t.includes("mulch")) && after.some((t) => t.toLowerCase().includes("grandfather")), JSON.stringify(after));
 
   await browser.close();
   console.log("\n  " + pass + " passed, " + fail + " failed");

@@ -207,7 +207,10 @@ body{font-family:'Inter',system-ui,sans-serif;background:radial-gradient(130% 55
 .points .bullet{flex:none;width:6px;height:6px;border-radius:50%;background:var(--accent);margin-top:8px;}
 .actions-block{margin-top:22px;background:var(--bg);border:1px solid var(--line-soft);border-radius:16px;padding:10px 15px;}
 .block-label{font-size:11px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);display:block;margin:8px 0 6px;}
-.action-row{display:flex;align-items:flex-start;gap:11px;font-size:14px;line-height:1.45;padding:9px 0;width:100%;background:none;border:none;text-align:left;color:var(--text);cursor:pointer;border-bottom:1px solid var(--line-soft);}
+.action-row{display:flex;align-items:flex-start;gap:6px;font-size:14px;line-height:1.45;padding:9px 0;width:100%;border-bottom:1px solid var(--line-soft);}
+.action-row .taskbtn{flex:1;min-width:0;display:flex;align-items:flex-start;gap:11px;background:none;border:none;text-align:left;color:var(--text);cursor:pointer;padding:0;font-family:'Inter',sans-serif;font-size:14px;line-height:1.45;}
+.action-row .action-del{flex:none;background:none;border:none;color:var(--faint);cursor:pointer;padding:1px 0 0 2px;display:flex;}
+.action-row .action-del:hover{color:#ff8a8a;}
 .action-row:last-child{border-bottom:none;}
 .acheck{flex:none;width:19px;height:19px;border-radius:6px;border:1.5px solid var(--accent-line);background:var(--accent-dim);margin-top:0;display:flex;align-items:center;justify-content:center;color:#181425;transition:all .15s;}
 .acheck.on{background:var(--good);border-color:var(--good);}
@@ -477,6 +480,7 @@ body{font-family:'Inter',system-ui,sans-serif;background:radial-gradient(130% 55
   }
 
   function toggleTask(noteId,actId){var n=find(noteId);if(!n||!n.actions)return;for(var i=0;i<n.actions.length;i++){if(n.actions[i].id===actId){n.actions[i].done=!n.actions[i].done;break;}}saveNotes();}
+  function deleteNoteTask(noteId,actId){var n=find(noteId);if(!n||!n.actions)return;n.actions=n.actions.filter(function(a){return a.id!==actId;});saveNotes();}
 
   function folderById(id){for(var i=0;i<folders.length;i++){if(folders[i].id===id)return folders[i];}return null;}
   function folderName(n){return ventureLabel(n);}
@@ -540,6 +544,7 @@ body{font-family:'Inter',system-ui,sans-serif;background:radial-gradient(130% 55
     setHeader();
     if(view==="library")renderLibrary();
     else if(view==="venture")renderVentureDetail();
+    else if(view==="folder")renderFolderDetail();
     else renderTasks();
     renderTabBar();
   }
@@ -547,8 +552,13 @@ body{font-family:'Inter',system-ui,sans-serif;background:radial-gradient(130% 55
     var t=document.getElementById("tag");
     if(view==="library"){
       if(query.trim()){t.textContent="Searching your library";return;}
+      if(libTab==="folders"){var fc=folders.length;t.textContent=fc===0?"Group notes your own way.":(fc+(fc===1?" folder":" folders"));return;}
       if(libTab==="ventures"){var c=ventures.length;t.textContent=c===0?"Your businesses gather as you capture.":(c+(c===1?" business":" businesses"));return;}
       t.textContent="Think out loud. Get it back sharper.";return;
+    }
+    if(view==="folder"){
+      var ff=folderById(activeFolderId);var fn=ff?notesInFolder(ff.id).length:0;
+      t.textContent=(ff?ff.name:"Folder")+" \u00b7 "+fn+(fn===1?" note":" notes");return;
     }
     if(view==="venture"){
       var v=ventureById(activeVentureId);
@@ -572,7 +582,7 @@ body{font-family:'Inter',system-ui,sans-serif;background:radial-gradient(130% 55
     var open=openCount();
     var bar=document.getElementById("tabbar");
     bar.innerHTML=
-      '<button class="tab'+((view==="library"||view==="venture")?" on":"")+'" data-view="library"><span class="tab-ic">'+I.layers(22)+'</span><span>Library</span></button>'
+      '<button class="tab'+((view==="library"||view==="venture"||view==="folder")?" on":"")+'" data-view="library"><span class="tab-ic">'+I.layers(22)+'</span><span>Library</span></button>'
       +'<button class="tab'+(view==="tasks"?" on":"")+'" data-view="tasks"><span class="tab-ic">'+I.checklist(22)+(open>0?'<span class="tab-badge">'+open+'</span>':'')+'</span><span>Tasks</span></button>';
     Array.prototype.forEach.call(bar.querySelectorAll("[data-view]"),function(b){b.onclick=function(){view=b.getAttribute("data-view");renderApp();};});
   }
@@ -582,7 +592,7 @@ body{font-family:'Inter',system-ui,sans-serif;background:radial-gradient(130% 55
     feed.innerHTML=
       '<div class="lib-controls">'
       +'<div class="searchbar">'+I.search(17)+'<input id="libSearch" type="text" placeholder="Search notes and businesses\u2026" autocomplete="off" spellcheck="false" /><button class="clr" id="libClr" aria-label="Clear search">'+I.x(15)+'</button></div>'
-      +'<div class="seg" id="libSeg"><button data-seg="notes" class="'+(libTab==="notes"?"on":"")+'">Notes</button><button data-seg="ventures" class="'+(libTab==="ventures"?"on":"")+'">Businesses</button></div>'
+      +'<div class="seg" id="libSeg"><button data-seg="notes" class="'+(libTab==="notes"?"on":"")+'">Notes</button><button data-seg="ventures" class="'+(libTab==="ventures"?"on":"")+'">Businesses</button><button data-seg="folders" class="'+(libTab==="folders"?"on":"")+'">Folders</button></div>'
       +(query.trim()?"":libToolbar())
       +'</div><div id="libBody"></div>';
     var input=document.getElementById("libSearch");
@@ -591,9 +601,16 @@ body{font-family:'Inter',system-ui,sans-serif;background:radial-gradient(130% 55
     if(query.trim())clr.classList.add("show");
     input.oninput=function(){query=input.value;if(query.trim())clr.classList.add("show");else clr.classList.remove("show");setHeader();renderLibBody();};
     clr.onclick=function(){query="";renderLibrary();};
-    Array.prototype.forEach.call(document.querySelectorAll("#libSeg [data-seg]"),function(b){b.onclick=function(){libTab=b.getAttribute("data-seg");creatingVenture=false;setHeader();renderLibrary();};});
+    Array.prototype.forEach.call(document.querySelectorAll("#libSeg [data-seg]"),function(b){b.onclick=function(){libTab=b.getAttribute("data-seg");creatingVenture=false;creatingFolder=false;setHeader();renderLibrary();};});
     var sp=document.getElementById("sortPill");if(sp)sp.onclick=function(){cycleSort();renderLibrary();};
     var nn=document.getElementById("newNoteBtn");if(nn)nn.onclick=function(){openNewNote();};
+    var nfb=document.getElementById("newFolderBtn");if(nfb)nfb.onclick=function(){creatingFolder=true;renderLibrary();};
+    var fni=document.getElementById("folderNameInput");
+    if(fni){fni.focus();
+      var addF=function(){var made=createFolder(fni.value);creatingFolder=false;if(made)libTab="folders";renderLibrary();};
+      document.getElementById("folderAdd").onclick=addF;
+      document.getElementById("folderCancel").onclick=function(){creatingFolder=false;renderLibrary();};
+      fni.onkeydown=function(e){if(e.key==="Enter")addF();else if(e.key==="Escape"){creatingFolder=false;renderLibrary();}};}
     var nf=document.getElementById("newVentureBtn");if(nf)nf.onclick=function(){creatingVenture=true;renderLibrary();};
     var fi=document.getElementById("ventureNameInput");
     if(fi){fi.focus();
@@ -606,6 +623,10 @@ body{font-family:'Inter',system-ui,sans-serif;background:radial-gradient(130% 55
   }
   function libToolbar(){
     if(libTab==="notes")return '<div class="toolbar" style="justify-content:space-between"><button class="newfolder-btn" id="newNoteBtn">'+I.plus(15)+'New note</button><button class="sort-pill" id="sortPill">'+I.list(14)+'<span>'+SORTS[sortMode]+'</span></button></div>';
+    if(libTab==="folders"){
+      if(creatingFolder)return '<div class="newfolder-row"><input id="folderNameInput" type="text" placeholder="Folder name\u2026" autocomplete="off" spellcheck="false" maxlength="40" /><button class="pill-btn ghost" id="folderCancel">Cancel</button><button class="pill-btn" id="folderAdd">Add</button></div>';
+      return '<div class="toolbar" style="justify-content:flex-start"><button class="newfolder-btn" id="newFolderBtn">'+I.plus(15)+'New folder</button></div>';
+    }
     if(creatingVenture)return '<div class="newfolder-row"><input id="ventureNameInput" type="text" placeholder="Business or idea name\u2026" autocomplete="off" spellcheck="false" maxlength="40" /><select id="vKind" class="kind-select"><option value="running">Running</option><option value="idea">Idea</option></select><button class="pill-btn ghost" id="ventureCancel">Cancel</button><button class="pill-btn" id="ventureAdd">Add</button></div>';
     return '<div class="toolbar" style="justify-content:flex-start"><button class="newfolder-btn" id="newVentureBtn">'+I.plus(15)+'New business</button></div>';
   }
@@ -621,6 +642,7 @@ body{font-family:'Inter',system-ui,sans-serif;background:radial-gradient(130% 55
       bindCards(body);return;
     }
     if(libTab==="ventures"){renderVentures(body);return;}
+    if(libTab==="folders"){renderFolders(body);return;}
     if(notes.length===0){body.innerHTML='<div class="empty-state"><span class="badge lg">'+MARK_LG+'</span><h2>Nothing captured yet</h2><p>Tap the mic and talk through what\u2019s on your mind. Half a thought is fine \u2014 Lucid sharpens it, then asks the questions worth answering.</p></div>';return;}
     var list=sortedNotes();
     if(sortMode==="venture"){
@@ -703,6 +725,96 @@ body{font-family:'Inter',system-ui,sans-serif;background:radial-gradient(130% 55
     });
   }
 
+  /* ---- folders: freeform grouping, independent of which business a note is about ---- */
+  function folderStats(id){
+    var list=notesInFolder(id),open=0,last=0;
+    list.forEach(function(n){
+      (n.actions||[]).forEach(function(a){if(!a.done)open++;});
+      if(n.createdAt>last)last=n.createdAt;
+    });
+    return {notes:list.length,open:open,last:last};
+  }
+  function renderFolders(body){
+    var html="";
+    if(folders.length){
+      html+='<div class="tasks-lead">Drag to reorder \u00b7 tap to open</div><div id="folderList">';
+      folders.forEach(function(f){
+        var st=folderStats(f.id);
+        var bits=[st.notes+(st.notes===1?" note":" notes")];
+        if(st.open)bits.push(st.open+" open");
+        if(st.last)bits.push(timeAgo(st.last));
+        html+='<div class="vcard" data-vid="'+f.id+'">'
+          +'<button class="grip" aria-label="Drag to reorder">'+I.grip(18)+'</button>'
+          +'<button class="vcard-body" data-openf="'+f.id+'">'
+          +'<div class="proj-top"><span class="proj-name">'+esc(f.name)+'</span><span class="proj-chev">'+I.chevron(16)+'</span></div>'
+          +'<div class="proj-meta">'+esc(bits.join(" \u00b7 "))+'</div></button></div>';
+      });
+      html+='</div>';
+    } else {
+      html='<div class="empty-state"><span class="badge lg">'+I.folder(30)+'</span><h2>No folders yet</h2><p>Folders are your own groupings \u2014 a project, a quarter, a client. A note can sit in a folder and still belong to a business.</p></div>';
+    }
+    body.innerHTML=html+'<div class="feed-pad"></div>';
+    Array.prototype.forEach.call(body.querySelectorAll("[data-openf]"),function(c){
+      c.onclick=function(){activeFolderId=c.getAttribute("data-openf");view="folder";renderApp();};
+    });
+    bindFolderDrag(document.getElementById("folderList"));
+  }
+  function bindFolderDrag(container){
+    if(!container)return;
+    Array.prototype.forEach.call(container.querySelectorAll(".grip"),function(handle){
+      handle.addEventListener("pointerdown",function(e){
+        e.preventDefault();
+        var card=handle.parentNode;
+        card.classList.add("drag");
+        try{handle.setPointerCapture(e.pointerId);}catch(_){}
+        function move(ev){
+          var y=ev.clientY,others=container.querySelectorAll(".vcard:not(.drag)"),placed=false;
+          for(var i=0;i<others.length;i++){var r=others[i].getBoundingClientRect();if(y<r.top+r.height/2){container.insertBefore(card,others[i]);placed=true;break;}}
+          if(!placed)container.appendChild(card);
+        }
+        function up(){
+          card.classList.remove("drag");
+          try{handle.releasePointerCapture(e.pointerId);}catch(_){}
+          handle.removeEventListener("pointermove",move);handle.removeEventListener("pointerup",up);
+          var ids=[];Array.prototype.forEach.call(container.querySelectorAll(".vcard"),function(c){ids.push(c.getAttribute("data-vid"));});
+          folders.sort(function(a,b){return ids.indexOf(a.id)-ids.indexOf(b.id);});
+          saveNotes();
+        }
+        handle.addEventListener("pointermove",move);handle.addEventListener("pointerup",up);
+      });
+    });
+  }
+  var renamingFolder=false;
+  function renderFolderDetail(){
+    var feed=document.getElementById("feed");
+    var f=folderById(activeFolderId);
+    if(!f){view="library";libTab="folders";renderLibrary();return;}
+    var list=notesInFolder(f.id).sort(function(a,b){return b.createdAt-a.createdAt;});
+    var tools=renamingFolder
+      ? '<div class="newfolder-row" style="margin-bottom:14px"><input id="fRenInput" type="text" value="'+esc(f.name)+'" maxlength="40" /><button class="pill-btn ghost" id="fRenCancel">Cancel</button><button class="pill-btn" id="fRenSave">Save</button></div>'
+      : '<div class="folder-tools"><button class="mini-btn" id="fRenBtn">'+I.pencil(14)+'Rename</button><button class="mini-btn danger" id="fDelBtn">'+I.trash(14)+'</button></div>';
+    var html='<button class="backrow" id="backBtn">'+I.back(15)+'All folders</button>'+tools;
+    if(list.length===0)html+='<div class="lib-empty">Nothing filed here yet. Open a note and pick this folder under \u201cFolder\u201d.</div>';
+    else list.forEach(function(n){html+=cardHTML(n,true);});
+    html+='<div class="feed-pad"></div>';
+    feed.innerHTML=html;
+    document.getElementById("backBtn").onclick=function(){renamingFolder=false;view="library";libTab="folders";renderApp();};
+    bindCards(feed);
+    var rb=document.getElementById("fRenBtn");if(rb)rb.onclick=function(){renamingFolder=true;renderFolderDetail();};
+    var db=document.getElementById("fDelBtn");
+    if(db)db.onclick=function(){
+      notes.forEach(function(n){if(n.folderId===f.id)n.folderId=null;});
+      folders=folders.filter(function(x){return x.id!==f.id;});
+      saveNotes();renamingFolder=false;view="library";libTab="folders";renderApp();toast("Folder removed \u00b7 notes kept");
+    };
+    var ri=document.getElementById("fRenInput");
+    if(ri){ri.focus();
+      var save=function(){var v=ri.value.trim();if(v){f.name=v;saveNotes();}renamingFolder=false;renderFolderDetail();setHeader();};
+      document.getElementById("fRenSave").onclick=save;
+      document.getElementById("fRenCancel").onclick=function(){renamingFolder=false;renderFolderDetail();};
+      ri.onkeydown=function(e){if(e.key==="Enter")save();else if(e.key==="Escape"){renamingFolder=false;renderFolderDetail();}};}
+  }
+
   /* ---- one business: where it stands + its notes ---- */
   var renamingVenture=false,standupBusy=false;
   function renderVentureDetail(){
@@ -769,7 +881,7 @@ body{font-family:'Inter',system-ui,sans-serif;background:radial-gradient(130% 55
       b.onclick=function(e){e.stopPropagation();var n=find(b.getAttribute("data-play"));if(n)speakNote(n,function(){renderApp();});};
     });
   }
-  function noteMatches(n,q){var hay=((n.title||"")+" "+(n.thesis||"")+" "+(n.project||"")+" "+ventureLabel(n)+" "+((n.points||[]).join(" "))+" "+((n.actions||[]).map(function(a){return a.text;}).join(" "))+" "+(n.raw||"")).toLowerCase();return hay.indexOf(q)>=0;}
+  function noteMatches(n,q){var hay=((n.title||"")+" "+(n.thesis||"")+" "+(n.project||"")+" "+ventureLabel(n)+" "+((n.folderId&&folderById(n.folderId))?folderById(n.folderId).name+" ":"")+((n.points||[]).join(" "))+" "+((n.actions||[]).map(function(a){return a.text;}).join(" "))+" "+(n.raw||"")).toLowerCase();return hay.indexOf(q)>=0;}
   function cardHTML(n,showFolder){
     var oc=(n.actions||[]).filter(function(a){return !a.done;}).length;
     var meta="";
@@ -866,12 +978,14 @@ body{font-family:'Inter',system-ui,sans-serif;background:radial-gradient(130% 55
       };
     });
     Array.prototype.forEach.call(feed.querySelectorAll(".task-main"),function(b){b.onclick=function(){openDetail(b.getAttribute("data-open"));};});
-    Array.prototype.forEach.call(feed.querySelectorAll(".solo-del"),function(b){b.onclick=function(e){e.stopPropagation();deleteSolo(b.getAttribute("data-del"));renderApp();};});
+    Array.prototype.forEach.call(feed.querySelectorAll(".solo-del[data-del]"),function(b){b.onclick=function(e){e.stopPropagation();deleteSolo(b.getAttribute("data-del"));renderApp();};});
+    Array.prototype.forEach.call(feed.querySelectorAll(".solo-del[data-delnote]"),function(b){b.onclick=function(e){e.stopPropagation();deleteNoteTask(b.getAttribute("data-delnote"),b.getAttribute("data-delact"));renderApp();};});
   }
   function taskRow(n,a){
     return '<div class="task-row'+(a.done?" done":"")+'">'
       +'<button class="tcheck'+(a.done?" on":"")+'" data-note="'+n.id+'" data-act="'+a.id+'" aria-label="Toggle task">'+(a.done?I.check(13):"")+'</button>'
-      +'<button class="task-main" data-open="'+n.id+'"><span class="task-text">'+esc(a.text)+'</span><span class="task-src">'+esc(n.title)+'</span></button></div>';
+      +'<button class="task-main" data-open="'+n.id+'"><span class="task-text">'+esc(a.text)+'</span><span class="task-src">'+esc(n.title)+'</span></button>'
+      +(a.done?'<button class="solo-del" data-delnote="'+n.id+'" data-delact="'+a.id+'" aria-label="Remove task">'+I.x(14)+'</button>':"")+'</div>';
   }
   function soloRow(t){
     return '<div class="task-row'+(t.done?" done":"")+'">'
@@ -1130,7 +1244,11 @@ body{font-family:'Inter',system-ui,sans-serif;background:radial-gradient(130% 55
       var rawBody=isRaw&&n.raw?'<p class="manual-body">'+esc(n.raw)+'</p><div class="expand-cta"><button class="expand-btn" id="expandAI">'+I.spark(16)+'Expand with AI</button><span class="expand-note">Adds a sharpened summary, questions, angles and risks.</span></div>':"";
       var pts=n.points&&n.points.length?'<span class="block-label">What you said</span><ul class="points">'+n.points.map(function(p){return '<li><span class="bullet"></span>'+esc(p)+'</li>';}).join("")+'</ul>':"";
       var devs=devSection("Questions to answer",n.questions,"q")+devSection("Angles to consider",n.angles,"a")+devSection("Watch out for",n.risks,"r");
-      var rows=(n.actions||[]).map(function(a){return '<button class="action-row taskbtn'+(a.done?" done":"")+'" data-act="'+a.id+'"><span class="acheck'+(a.done?" on":"")+'">'+(a.done?I.check(12):"")+'</span><span>'+esc(a.text)+'</span></button>';}).join("");
+      var rows=(n.actions||[]).map(function(a){
+        return '<div class="action-row'+(a.done?" done":"")+'">'
+          +'<button class="taskbtn" data-act="'+a.id+'"><span class="acheck'+(a.done?" on":"")+'">'+(a.done?I.check(12):"")+'</span><span>'+esc(a.text)+'</span></button>'
+          +(a.done?'<button class="action-del" data-delact="'+a.id+'" aria-label="Remove task">'+I.x(13)+'</button>':"")+'</div>';
+      }).join("");
       var addBits=addingTask
         ? '<div class="addtask-row" style="margin-top:8px"><input id="noteTaskInput" type="text" placeholder="What needs doing?" autocomplete="off" /><button class="pill-btn" id="noteTaskAdd">Add</button></div>'
         : '<button class="raw-toggle" id="addTaskBtn" style="margin-top:6px">'+I.plus(14)+'Add task</button>';
@@ -1142,7 +1260,9 @@ body{font-family:'Inter',system-ui,sans-serif;background:radial-gradient(130% 55
           +'</div>';
       }
       var raw=showRaw?'<p class="raw-text">'+esc(n.raw)+'</p>':"";
-      var fileRow='<div class="file-row"><span class="block-label">Business</span><div class="chips" id="folderChips"><button class="chip'+(!n.ventureId?" on":"")+'" data-fid="">Unfiled</button>'+ventures.map(function(v){return '<button class="chip'+(n.ventureId===v.id?" on":"")+'" data-fid="'+v.id+'">'+esc(v.name)+'</button>';}).join("")+'</div></div>';
+      var fileRow='<div class="file-row"><span class="block-label">Business</span><div class="chips" id="folderChips"><button class="chip'+(!n.ventureId?" on":"")+'" data-fid="">Unfiled</button>'+ventures.map(function(v){return '<button class="chip'+(n.ventureId===v.id?" on":"")+'" data-fid="'+v.id+'">'+esc(v.name)+'</button>';}).join("")+'</div>'
+        +(folders.length?'<span class="block-label" style="margin-top:14px">Folder</span><div class="chips" id="noteFolderChips"><button class="chip'+(!n.folderId?" on":"")+'" data-nfid="">None</button>'+folders.map(function(f){return '<button class="chip'+(n.folderId===f.id?" on":"")+'" data-nfid="'+f.id+'">'+esc(f.name)+'</button>';}).join("")+'</div>':"")
+        +'</div>';
       var deepLabel=(n.thread&&n.thread.length)?"Continue ("+n.thread.filter(function(m){return m.role==="user";}).length+")":"Go deeper";
       document.getElementById("modals").innerHTML='<div class="scrim" id="detScrim"><div class="sheet" id="detSheet"><div class="grab"></div><div class="detail-head"><div style="min-width:0">'+(editingTitle?'<div class="newfolder-row" style="margin-bottom:0"><input id="titleInput" type="text" value="'+esc(n.title)+'" maxlength="70" /><button class="pill-btn" id="titleSave">Save</button></div>':'<span class="detail-project">'+esc(folderName(n))+'</span><h2 class="detail-title" id="titleTap">'+esc(n.title)+'</h2>')+'</div><button class="icon-btn" id="detClose">'+I.x(18)+'</button></div><div class="detail-body" style="'+(busy?"opacity:.4":"")+'">'+(n.thesis?'<p class="detail-thesis">'+esc(n.thesis)+'</p>':"")+rawBody+pts+devs+sugg+acts+fileRow+(isRaw?"":'<button class="raw-toggle" id="rawToggle">'+I.chevron(14)+(showRaw?"Hide":"Show")+' what you said</button>'+raw)+threadPanel(n)+'</div><div class="expand-row"><button class="listen-btn'+(speakingId===n.id?" playing":"")+'" id="listenBtn">'+(speakingId===n.id?I.stopc(15)+'Stop':I.play(15)+'Listen')+'</button><button class="expand-btn" id="goDeeper">'+I.expand(16)+deepLabel+'</button></div><div class="detail-actions"><button class="mini-btn" id="sharpen">'+I.refresh(15)+(isRaw?"Expand":"Sharpen")+'</button><button class="mini-btn" id="copy">'+I.copy(15)+'Copy</button>'+(confirmDel?'<button class="mini-btn danger on" id="del">'+I.trash(15)+'Sure?</button>':'<button class="mini-btn danger" id="del">'+I.trash(15)+'</button>')+'</div></div></div>';
       document.getElementById("detSheet").onclick=function(e){e.stopPropagation();};
@@ -1178,8 +1298,12 @@ body{font-family:'Inter',system-ui,sans-serif;background:radial-gradient(130% 55
       document.getElementById("copy").onclick=function(){try{navigator.clipboard.writeText(noteToText(n));}catch(e){}toast("Copied to clipboard");};
       document.getElementById("listenBtn").onclick=function(){speakNote(n,function(){render();});};
       document.getElementById("goDeeper").onclick=function(){showThread=!showThread;render();};
+      Array.prototype.forEach.call(document.querySelectorAll("#noteFolderChips .chip"),function(b){b.onclick=function(){
+        var fid=b.getAttribute("data-nfid");n.folderId=fid?fid:null;saveNotes();render();renderApp();
+        var fn2=fid&&folderById(fid)?folderById(fid).name:null;toast(fn2?("Filed in "+fn2):"Removed from folder");};});
       Array.prototype.forEach.call(document.querySelectorAll("#folderChips .chip"),function(b){b.onclick=function(){var vid=b.getAttribute("data-fid");n.ventureId=vid?vid:null;saveNotes();render();renderApp();var vn=vid&&ventureById(vid)?ventureById(vid).name:null;toast(vn?("Moved to "+vn):"Unfiled");};});
       Array.prototype.forEach.call(document.querySelectorAll("#detSheet .taskbtn"),function(b){b.onclick=function(){toggleTask(n.id,b.getAttribute("data-act"));render();renderApp();};});
+      Array.prototype.forEach.call(document.querySelectorAll("#detSheet .action-del"),function(b){b.onclick=function(){deleteNoteTask(n.id,b.getAttribute("data-delact"));render();renderApp();};});
       var del=document.getElementById("del");
       del.onclick=function(){if(!confirmDel){confirmDel=true;render();return;}notes=notes.filter(function(x){return x.id!==id;});manualOrder=manualOrder.filter(function(x){return x!==id;});saveNotes();renderApp();closeModals();};
       var eai=document.getElementById("expandAI");
