@@ -30,6 +30,11 @@
   status = 200
 
 [[redirects]]
+  from = "/api/standup"
+  to = "/.netlify/functions/standup"
+  status = 200
+
+[[redirects]]
   from = "/api/health"
   to = "/.netlify/functions/health"
   status = 200

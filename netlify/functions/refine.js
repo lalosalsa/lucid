@@ -27,10 +27,11 @@ exports.handler = async (event) => {
 
   const raw = typeof body.raw === "string" ? body.raw : "";
   const lens = LENSES[body.lens] ? body.lens : "operator";
+  const ventures = Array.isArray(body.ventures) ? body.ventures : [];
   if (!raw.trim()) return json(400, { error: "empty_thought" });
 
   try {
-    return json(200, await refine(raw, lens));
+    return json(200, await refine(raw, lens, ventures));
   } catch (err) {
     if (err && err.status === 401) console.error("[refine] Anthropic auth failed — check ANTHROPIC_API_KEY.");
     else console.error("[refine] failed:", (err && err.message) || err);

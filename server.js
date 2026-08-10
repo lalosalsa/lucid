@@ -15,6 +15,7 @@ const express = require("express");
 const { LENSES, MODEL, refine } = require("./lib/refine");
 const { transcribe, GEMINI_MODEL } = require("./lib/transcribe");
 const { develop } = require("./lib/develop");
+const { standup } = require("./lib/standup");
 
 const app = express();
 // Audio (base64 WAV) can be a few MB; give the body parser room.
@@ -37,10 +38,11 @@ app.post("/api/transcribe", async (req, res) => {
 app.post("/api/refine", async (req, res) => {
   const raw = req.body && typeof req.body.raw === "string" ? req.body.raw : "";
   const lens = req.body && LENSES[req.body.lens] ? req.body.lens : "operator";
+  const ventures = req.body && Array.isArray(req.body.ventures) ? req.body.ventures : [];
   if (!raw.trim()) return res.status(400).json({ error: "empty_thought" });
 
   try {
-    return res.json(await refine(raw, lens));
+    return res.json(await refine(raw, lens, ventures));
   } catch (err) {
     if (err && err.status === 401) console.error("[refine] Anthropic auth failed — check ANTHROPIC_API_KEY.");
     else console.error("[refine] failed:", (err && err.message) || err);
@@ -58,6 +60,17 @@ app.post("/api/develop", async (req, res) => {
   } catch (err) {
     console.error("[develop] failed:", (err && err.message) || err);
     return res.status(502).json({ error: "develop_failed" });
+  }
+});
+
+app.post("/api/standup", async (req, res) => {
+  const b = req.body || {};
+  if (!b.venture) return res.status(400).json({ error: "no_venture" });
+  try {
+    return res.json(await standup(b.venture, b.notes));
+  } catch (err) {
+    console.error("[standup] failed:", (err && err.message) || err);
+    return res.status(502).json({ error: "standup_failed" });
   }
 });
 

@@ -5,7 +5,25 @@ back as a clean note — title, thesis, bullet points, and next actions — grou
 into smart folders with the tasks pulled out for you.
 
 **How it works:** the browser records your voice → **Gemini Flash** transcribes
-it → **Claude** structures it into a note. Typing skips the first two steps.
+it → **Claude** structures it, develops it, and files it under the business or
+idea it's about. Typing skips the first two steps.
+
+## What it does
+
+- **Talk, don't type.** One tap on the mic starts recording; stop and the
+  thought is transcribed, sharpened, and saved.
+- **It thinks with you.** Every note comes back split into what *you* said
+  (thesis + points, never embellished) and what Lucid adds — questions worth
+  answering, angles you didn't mention, and risks you may be carrying. Tap
+  **Go deeper** for a conversation about the note that already has the context.
+- **Organized by business.** Notes route themselves to the venture they're
+  about — a company you're running or an idea you're exploring. Businesses can
+  be renamed, reordered by dragging, and notes can be sorted by business.
+- **"Where it stands."** Open a business and Lucid reads everything you've
+  captured about it and tells you what's moving, what's stuck, and what deserves
+  attention next.
+- **Tasks pulled out.** Next steps are extracted from your notes and grouped by
+  business in the Tasks tab.
 
 ## Why there's a backend
 
