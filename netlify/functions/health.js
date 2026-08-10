@@ -1,12 +1,21 @@
 "use strict";
 
-// Netlify function backing GET /api/health — quick check that the key is set.
+const { modelFor, MODE } = require("../../lib/model");
+
+// Netlify function backing GET /api/health - which keys and models are live.
 exports.handler = async () => ({
   statusCode: 200,
   headers: { "Content-Type": "application/json" },
   body: JSON.stringify({
     ok: true,
-    model: process.env.ANTHROPIC_MODEL || "claude-sonnet-4-6",
     keyConfigured: !!process.env.ANTHROPIC_API_KEY,
+    geminiKeyConfigured: !!process.env.GEMINI_API_KEY,
+    costMode: MODE,
+    models: {
+      refine: modelFor("refine"),
+      develop: modelFor("develop"),
+      standup: modelFor("standup"),
+      transcribe: process.env.GEMINI_MODEL || "gemini-2.5-flash",
+    },
   }),
 });

@@ -16,6 +16,7 @@ const { LENSES, MODEL, refine } = require("./lib/refine");
 const { transcribe, GEMINI_MODEL } = require("./lib/transcribe");
 const { develop } = require("./lib/develop");
 const { standup } = require("./lib/standup");
+const { modelFor, MODE } = require("./lib/model");
 
 const app = express();
 // Audio (base64 WAV) can be a few MB; give the body parser room.
@@ -77,10 +78,15 @@ app.post("/api/standup", async (req, res) => {
 app.get("/api/health", (req, res) => {
   res.json({
     ok: true,
-    model: MODEL,
     keyConfigured: !!process.env.ANTHROPIC_API_KEY,
-    sttModel: GEMINI_MODEL,
     geminiKeyConfigured: !!process.env.GEMINI_API_KEY,
+    costMode: MODE,
+    models: {
+      refine: modelFor("refine"),
+      develop: modelFor("develop"),
+      standup: modelFor("standup"),
+      transcribe: GEMINI_MODEL,
+    },
   });
 });
 

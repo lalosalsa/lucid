@@ -72,7 +72,9 @@ Check `http://localhost:3000/api/health` — `keyConfigured` should be `true`.
 | Variable            | Default             | Purpose                                                        |
 | ------------------- | ------------------- | -------------------------------------------------------------- |
 | `ANTHROPIC_API_KEY` | _(required)_        | Your Anthropic key. Without it, refinement falls back to local. |
-| `ANTHROPIC_MODEL`   | `claude-sonnet-4-6` | Model used to refine notes. Set `claude-opus-5` for more depth. |
+| `LUCID_COST_MODE`   | `balanced`          | `economy` / `balanced` / `quality` — sets models per job.       |
+| `ANTHROPIC_MODEL`   | _(unset)_           | Forces one Claude model for all three jobs, overriding the mode. |
+| `ANTHROPIC_MODEL_REFINE` / `_DEVELOP` / `_STANDUP` | _(falls back to above)_ | Per-job override — e.g. Haiku for capture, Sonnet for reasoning. |
 | `GEMINI_API_KEY`    | _(required for voice)_ | Google Gemini key for speech-to-text. Typing works without it. |
 | `GEMINI_MODEL`      | `gemini-2.5-flash`  | Model used to transcribe recorded audio.                       |
 | `PORT`              | `3000`              | Port to serve on.                                              |
@@ -106,7 +108,34 @@ live in the repo:
 3. **Trigger a redeploy** (Deploys → Trigger deploy) so the keys take effect.
 
 That's it. (Optional: `ANTHROPIC_MODEL` = `claude-opus-5` for higher-quality
-notes; `GEMINI_MODEL` to change the transcription model.)
+notes, or `claude-haiku-4-5` for cheaper/faster ones; `GEMINI_MODEL` to change
+the transcription model.)
+
+**Cost control.** Capture runs on every thought and dominates spend; "go deeper"
+and "where it stands" run only when you ask for them, and that's where model
+quality actually shows. So the models are set per job, via one variable:
+
+`LUCID_COST_MODE` = `economy` | `balanced` (default) | `quality`
+
+| Mode | Capture | Go deeper | Where it stands |
+| --- | --- | --- | --- |
+| `economy` | Haiku 4.5 | Haiku 4.5 | Haiku 4.5 |
+| `balanced` *(default)* | Haiku 4.5 | Sonnet 4.6 | Sonnet 4.6 |
+| `quality` | Sonnet 4.6 | Opus 5 | Opus 5 |
+
+Roughly, per 100 captures (~1,400 input / 450 output tokens each, at list prices):
+
+| Model | Per capture | Per 100 captures |
+| --- | --- | --- |
+| Haiku 4.5 | $0.0037 | **$0.37** |
+| Sonnet 4.6 | $0.0109 | **$1.09** |
+| Opus 5 | $0.0182 | **$1.82** |
+
+Override anything individually — these beat the mode:
+`ANTHROPIC_MODEL_REFINE`, `ANTHROPIC_MODEL_DEVELOP`, `ANTHROPIC_MODEL_STANDUP`.
+Setting `ANTHROPIC_MODEL` forces one model for all three.
+
+`/api/health` reports the active cost mode and the model each job is using.
 
 Verify at `https://<your-site>.netlify.app/api/health` — `keyConfigured` and
 `geminiKeyConfigured` should both be `true`. Netlify serves over HTTPS
