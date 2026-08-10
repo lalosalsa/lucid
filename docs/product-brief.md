@@ -85,8 +85,14 @@ design right now.
    about it over time and reports what's moving, what's stuck or repeatedly
    deferred, and what deserves attention next.
 7. **Tasks, opt-in.** Lucid suggests next steps but never adds them to your list
-   on its own — you tap to accept. You can also type a task, or just say
-   *"add task: call the supplier"* and it's captured as a task, not a note.
+   on its own — you tap to accept. You can also type a task directly, add one
+   inside a note, or just say *"add task: call the supplier"* and it's
+   captured as a task, not a note.
+8. **Capture doesn't require AI at all.** You can talk or type and get the full
+   structuring treatment, or just write a plain note (or save a dictated/typed
+   thought "as-is") with zero model calls and zero cost. A raw note can be
+   **expanded with AI** later, on demand — the thinking is always opt-in, never
+   forced, and never charged unless asked for.
 
 There are three capture "lenses" — Operator (bias to momentum and next steps),
 Analyst (rigorous, literal, flags open questions), Meeting (decisions, owners,
@@ -95,11 +101,14 @@ follow-ups).
 ## What's actually built today
 
 A working, deployed web app (mobile-first, installable to a phone home screen).
-Voice capture, transcription, structuring, thinking sections, auto-filing to
-businesses, per-business rollups, the follow-up conversation, tasks (suggested,
-manual, and voice-command), read-aloud, search, sorting, and JSON
-backup/restore. Serverless backend; API keys held server-side. Covered by an
-automated browser test suite.
+Voice capture, transcription, AI structuring (optional and on-demand), thinking
+sections, auto-filing to businesses, per-business rollups, the follow-up
+conversation, tasks (suggested, manual, and voice-command), plain manual notes,
+read-aloud, search, sorting, and JSON backup/restore. Serverless backend; API
+keys held server-side. AI cost is tunable per feature (economy/balanced/quality
+model presets — a cheap model handles high-volume capture, a stronger one is
+reserved for the on-demand reasoning features) so unit costs stay low and
+predictable. Covered by an automated browser test suite (50+ checks).
 
 ## Known gaps (be realistic about these in the plan)
 
@@ -108,8 +117,11 @@ automated browser test suite.
   is a manual file export. This is the single biggest barrier to charging money
   and to trust — someone won't log their business in something that can vanish.
 - **No team features.** Single-player only.
-- **Per-use API cost.** Every capture costs money (transcription + model calls),
-  so unit economics must be part of pricing, not an afterthought.
+- **Per-use API cost, though now tunable and small.** Every AI-assisted action
+  costs money, but plain capture is free (no model call), and the default model
+  mix keeps AI-assisted capture around $0.35–$1 per 100 captures at list API
+  prices. Unit economics still need to be in the pricing model, but they're a
+  known, controllable input rather than an open question.
 - **No native mobile app** (web only, though installable).
 - **Retention is unproven.** No real usage data yet.
 
