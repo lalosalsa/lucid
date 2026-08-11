@@ -14,6 +14,7 @@ const path = require("path");
 const express = require("express");
 const { LENSES, MODEL, refine } = require("./lib/refine");
 const { transcribe, GEMINI_MODEL } = require("./lib/transcribe");
+const { sort, SORT_MODEL } = require("./lib/sort");
 const { develop } = require("./lib/develop");
 const { standup } = require("./lib/standup");
 const { modelFor, MODE } = require("./lib/model");
@@ -45,6 +46,19 @@ app.post("/api/transcribe", async (req, res) => {
     }
     console.error("[transcribe] failed:", (err && err.message) || err);
     return res.status(502).json({ error: "transcribe_failed" });
+  }
+});
+
+app.post("/api/sort", async (req, res) => {
+  const raw = req.body && typeof req.body.raw === "string" ? req.body.raw.trim() : "";
+  if (!raw) return res.status(400).json({ error: "empty_capture" });
+  if (!hasEnv("GEMINI_API_KEY")) return res.status(503).json({ error: "no_key" });
+  try {
+    return res.json(await sort(raw, req.body.ventures));
+  } catch (err) {
+    console.error("[sort] failed:", (err && err.message) || err);
+    // The client falls back to its own rules, so this is never fatal.
+    return res.status(502).json({ error: "sort_failed" });
   }
 });
 
@@ -98,6 +112,7 @@ app.get("/api/health", (req, res) => {
       develop: modelFor("develop"),
       standup: modelFor("standup"),
       transcribe: GEMINI_MODEL,
+      sort: SORT_MODEL,
     },
   });
 });

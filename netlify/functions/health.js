@@ -17,6 +17,7 @@ exports.handler = async () => ({
       develop: modelFor("develop"),
       standup: modelFor("standup"),
       transcribe: env("GEMINI_MODEL", "gemini-2.5-flash"),
+      sort: env("GEMINI_SORT_MODEL", env("GEMINI_MODEL", "gemini-2.5-flash")),
     },
   }),
 });

@@ -192,6 +192,48 @@ function check(name, ok, extra) {
   check("tasks group under the business name",
     groups.some((g) => g.toLowerCase() === "northwind farms llc"), JSON.stringify(groups));
 
+  // --- 7. Gemini triage: no command words, but it's plainly a to-do
+  let sortCalls = 0, sortReply = null;
+  await page.route("**/api/sort", async (route) => {
+    sortCalls++;
+    await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(sortReply) });
+  });
+  let refineCalls = 0;
+  await page.route("**/api/refine", async (route) => { refineCalls++; await route.abort(); });
+
+  sortReply = { kind: "task", text: "Reseal the north greenhouse before frost",
+                venture: { id: "v_nw", name: "Northwind Farms LLC", kind: "running" }, worthExpanding: false };
+  await speak("I really need to get that north greenhouse resealed before the first frost hits");
+  s = await store();
+  t0 = s.tasks[0] || {};
+  check("Gemini can turn a plain capture into a task",
+    /reseal the north greenhouse/i.test(t0.text || ""), JSON.stringify(t0.text));
+  check("Gemini's routing is applied", t0.ventureId === "v_nw", JSON.stringify(t0.ventureId));
+  check("no Claude call for a triaged task", refineCalls === 0);
+
+  // a log becomes a plain note, still without a Claude call
+  sortReply = { kind: "note", text: "Paid the mulch invoice, $1,840.",
+                venture: { id: "v_nw", name: "Northwind Farms LLC", kind: "running" }, worthExpanding: false };
+  await speak("um so I paid the mulch invoice today, eighteen forty");
+  s = await store();
+  n0 = s.notes[0] || {};
+  check("Gemini can save a log as a plain note", /mulch invoice/i.test(n0.raw || ""), JSON.stringify(n0.raw));
+  check("triaged note filed under the business", n0.ventureId === "v_nw", JSON.stringify(n0.ventureId));
+  check("still no Claude call for a log", refineCalls === 0);
+
+  // explicit commands must not pay for a triage round-trip
+  const callsBefore = sortCalls;
+  await speak("add task order more fencing");
+  check("explicit command skips triage entirely", sortCalls === callsBefore, "calls: " + sortCalls);
+
+  // triage failure must not lose the capture
+  await page.unroute("**/api/sort");
+  await page.route("**/api/sort", (route) => route.fulfill({ status: 502, contentType: "application/json", body: '{"error":"sort_failed"}' }));
+  await speak("just note the fence posts arrive thursday");
+  s = await store();
+  check("capture survives a triage failure",
+    (s.notes || []).some((n) => /fence posts/i.test(n.raw || "")), JSON.stringify((s.notes || [])[0]));
+
   await browser.close();
   console.log("\n  " + pass + " passed, " + fail + " failed");
   if (errors.length) { console.log("\n  JS ERRORS:"); errors.forEach((e) => console.log("   - " + e)); }

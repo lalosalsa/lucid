@@ -1204,6 +1204,28 @@ body{font-family:'Inter',system-ui,sans-serif;background:radial-gradient(130% 55
     var v=id?ventureById(id):null;
     return v?" \u00b7 "+v.name:"";
   }
+  /* ---- triage ----
+     Gemini decides what a capture is and which business it belongs to. It is
+     cheap and fast enough to run on every capture, and it keeps Claude for the
+     thinking. Explicit commands still short-circuit it - when someone says
+     "add task", there is nothing to decide and no reason to wait on a network
+     call. If the call fails, the local rules below do the whole job. */
+  function sortCapture(raw){
+    var payload={raw:raw,ventures:ventures.map(function(v){return {id:v.id,name:v.name,kind:v.kind};})};
+    var ctl=window.AbortController?new AbortController():null;
+    var timer=setTimeout(function(){if(ctl)ctl.abort();},6000);
+    return fetch("/api/sort",{method:"POST",headers:{"Content-Type":"application/json"},
+      body:JSON.stringify(payload),signal:ctl?ctl.signal:undefined})
+      .then(function(res){if(!res.ok)throw new Error("sort_"+res.status);return res.json();})
+      .then(function(j){clearTimeout(timer);return j&&j.kind?j:null;})
+      .catch(function(err){clearTimeout(timer);console.warn("[sort] falling back to local rules:",err&&err.message);return null;});
+  }
+  /* Turn Gemini's venture pick into an id, creating the business if it is new. */
+  function ventureIdFrom(v){
+    if(!v||!v.name)return null;
+    var stub={};assignVenture(stub,v);
+    return stub.ventureId||null;
+  }
   function finishRefine(raw){
     raw=(raw||"").trim();if(!raw){closeModals();return;}
     var route=routeVenture(raw);
@@ -1230,13 +1252,38 @@ body{font-family:'Inter',system-ui,sans-serif;background:radial-gradient(130% 55
       toast("Note saved"+(filedSuffix(pid)||" \u00b7 expand with AI anytime"));
       return Promise.resolve();
     }
-    capPhase="refining";if(!refMsg)refMsg="Structuring your thought\u2026";renderCapture();
+    /* No explicit command - let Gemini say what this is before spending a Claude call. */
+    capPhase="refining";refMsg="Sorting\u2026";renderCapture();
+    return sortCapture(raw).then(function(s){
+      if(s&&s.kind==="task"){
+        var tid=route.id||ventureIdFrom(s.venture);
+        addTask(cap(s.text),tid);
+        closeModals();view="tasks";renderApp();
+        toast("Task added"+filedSuffix(tid));
+        return;
+      }
+      if(s&&s.kind==="note"){
+        var nid=route.id||ventureIdFrom(s.venture);
+        addManualNote("",s.text,nid);
+        closeModals();renderApp();
+        toast("Note saved"+(filedSuffix(nid)||" \u00b7 expand with AI anytime"));
+        return;
+      }
+      return refineThought(raw,route,s);
+    });
+  }
+  /* A thought: Claude does the thinking, Gemini's routing stands unless they
+     named a business out loud themselves. */
+  function refineThought(raw,route,s){
+    capPhase="refining";refMsg="Structuring your thought\u2026";renderCapture();
     return refine(raw,lens).then(function(r){
       var note={id:"n_"+Date.now(),createdAt:Date.now(),lens:lens,raw:raw};
       for(var k in r){note[k]=r[k];}
       assignVenture(note,r.venture);delete note.venture;
-      /* Naming a business out loud beats the model's guess. */
-      if(route.id&&ventureById(route.id))note.ventureId=route.id;
+      /* Routing precedence: what they said out loud, then Gemini's read, then Claude's. */
+      var sid=s&&s.venture?ventureIdFrom(s.venture):null;
+      if(sid)note.ventureId=sid;
+      if(route&&route.id&&ventureById(route.id))note.ventureId=route.id;
       normNote(note);
       notes.unshift(note);manualOrder.unshift(note.id);saveNotes();renderApp();closeModals();
       toast(note.offline?"Saved \u00b7 quick format":"Refined & saved");
@@ -1572,7 +1619,8 @@ body{font-family:'Inter',system-ui,sans-serif;background:radial-gradient(130% 55
         var lines=[];
         lines.push((h.geminiKeyConfigured?"\u2713":"\u2717")+" Voice transcription key "+(h.geminiKeyConfigured?"configured":"MISSING \u2014 add GEMINI_API_KEY"));
         lines.push((h.keyConfigured?"\u2713":"\u2717")+" AI thinking key "+(h.keyConfigured?"configured":"MISSING \u2014 add ANTHROPIC_API_KEY"));
-        if(h.models)lines.push("Models \u00b7 "+h.models.transcribe+" \u00b7 "+h.models.refine);
+        if(h.models)lines.push("Voice & sorting \u00b7 "+h.models.transcribe+(h.models.sort&&h.models.sort!==h.models.transcribe?" / "+h.models.sort:""));
+        if(h.models)lines.push("Thinking \u00b7 "+h.models.refine);
         out.textContent=lines.join("\n");
       }).catch(function(){out.textContent="Couldn\u2019t reach the server.";});
     };
