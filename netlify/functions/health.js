@@ -13,6 +13,7 @@ exports.handler = async () => ({
     geminiKeyConfigured: hasEnv("GEMINI_API_KEY"),
     costMode: MODE,
     models: {
+      format: modelFor("format"),
       refine: modelFor("refine"),
       develop: modelFor("develop"),
       standup: modelFor("standup"),

@@ -473,10 +473,11 @@ body{font-family:'Inter',system-ui,sans-serif;background:radial-gradient(130% 55
      Sharpen on it later to get the thinking treatment. */
   function addManualNote(title,body,ventureId){
     var raw=(body||"").trim();if(!raw&&!(title||"").trim())return null;
-    var t=(title||"").trim()||cap(raw.split(/\s+/).slice(0,6).join(" "))||"Note";
+    var own=(title||"").trim();
+    var t=own||cap(raw.split(/\s+/).slice(0,6).join(" "))||"Note";
     var note={id:"n_"+Date.now(),createdAt:Date.now(),lens:lens,raw:raw,title:t,
       project:"Inbox",ventureId:ventureId||null,thesis:"",points:[],
-      questions:[],angles:[],risks:[],suggestions:[],actions:[],manual:true};
+      questions:[],angles:[],risks:[],suggestions:[],actions:[],manual:true,userTitle:!!own};
     normNote(note);notes.unshift(note);manualOrder.unshift(note.id);saveNotes();
     return note;
   }
@@ -1055,7 +1056,7 @@ body{font-family:'Inter',system-ui,sans-serif;background:radial-gradient(130% 55
     var body="";
     if(capPhase==="idle"){body='<div class="cap-idle"><button class="rec-btn" id="recBtn">'+I.mic(30)+'</button><p class="cap-hint">Tap and start talking</p><p class="cap-hint dim" style="margin-top:8px;font-size:12px">Say \u201cadd task\u2026\u201d for a to-do, \u201cjust note\u2026\u201d to save your words as-is, or name a business (\u201cfor Northwind\u2026\u201d) to file it there</p><button class="text-alt" id="toType">'+I.keyboard(14)+'Type instead</button></div>';}
     else if(capPhase==="listening"){body='<div class="cap-live"><div class="live-transcript" id="liveT" style="display:flex;align-items:center;justify-content:center"><p style="text-align:center"><span class="ghost">Listening\u2026 speak now.</span><br><span id="recTime" style="font-family:\'JetBrains Mono\',monospace;font-size:15px;color:var(--accent)">0:00</span></p></div><div class="bars">'+bars()+'</div><button class="stop-btn" id="stopBtn">'+I.square(16)+'Stop &amp; refine</button></div>';}
-    else if(capPhase==="type"){body='<div class="cap-type"><textarea id="typed" rows="5" placeholder="Dump the rough thought here\u2026 (or \u201cadd task: call the supplier\u201d)"></textarea><div class="type-row">'+(CANREC?'<button class="text-alt" id="toVoice">'+I.mic(14)+'Use voice</button>':'<span></span>')+'<span style="display:flex;gap:7px;align-items:center;margin-left:auto"><button class="pill-btn ghost" id="saveRaw" disabled>Save as-is</button><button class="primary-btn" id="refineTyped" disabled style="margin-left:0">'+I.spark(15)+'Refine</button></span></div></div>';}
+    else if(capPhase==="type"){body='<div class="cap-type"><textarea id="typed" rows="5" placeholder="Dump the rough thought here\u2026 (or \u201cadd task: call the supplier\u201d)"></textarea><div class="type-row">'+(CANREC?'<button class="text-alt" id="toVoice">'+I.mic(14)+'Use voice</button>':'<span></span>')+'<span style="display:flex;gap:7px;align-items:center;margin-left:auto"><button class="pill-btn ghost" id="saveRaw" disabled>Save note</button><button class="primary-btn" id="refineTyped" disabled style="margin-left:0">'+I.spark(15)+'Refine</button></span></div></div>';}
     else if(capPhase==="refining"){body='<div class="cap-refining"><div class="orbit">'+I.spark(22)+'</div><div class="refine-lines"><div class="shimmer-line"></div><div class="shimmer-line"></div><div class="shimmer-line short"></div></div><p class="cap-hint dim">'+esc(refMsg||"Structuring your thought\u2026")+'</p></div>';}
     var lensBar=capPhase==="refining"?"":'<div class="sheet-lens">'+Object.keys(LENSES).map(function(k){return '<button class="lens-seg'+(k===lens?" on":"")+'" data-slens="'+k+'">'+LENSES[k].label+'</button>';}).join("")+'</div>';
     var head='<div class="sheet-head"><span class="sheet-title">'+(capPhase==="refining"?"Refining\u2026":"New thought")+'</span>'+(capPhase!=="refining"?'<button class="icon-btn" id="capClose">'+I.x(18)+'</button>':"")+'</div>';
@@ -1077,7 +1078,7 @@ body{font-family:'Inter',system-ui,sans-serif;background:radial-gradient(130% 55
         var v=ta.value.trim();if(!v)return;
         var made=addManualNote("",v,null);
         closeModals();renderApp();
-        if(made)toast("Saved \u00b7 expand with AI anytime");
+        if(made){toast("Saved");formatNote(made.id);}
       };}
   }
   function bars(){var s="";for(var i=0;i<9;i++){s+='<span style="animation-delay:'+(i*0.09)+'s"></span>';}return s;}
@@ -1129,15 +1130,19 @@ body{font-family:'Inter',system-ui,sans-serif;background:radial-gradient(130% 55
     var body=(m[1]||"").trim().replace(/^[:,\-\u2014\s]+/,"").replace(/[.\s]+$/,"");
     return body?cap(body):null;
   }
-  /* "Create task" and then nothing - they meant a task, they just did not say
-     which one. Saving that as a note is the one thing they clearly did not want. */
+  /* "Create task" / "add note" and then nothing - they said what they wanted,
+     just not what goes in it. Saving that phrase as the content is the one
+     outcome they clearly did not intend. */
   function isBareTaskCommand(text){
     return /^(?:hey\s+)?(?:lucid[\s,:]+)?(?:please\s+)?(?:add|create|make|new|start)\s+(?:a\s+|an\s+)?(?:new\s+)?(?:task|to-?do|reminder|action item)\s*[.!?]*$/i.test((text||"").trim());
+  }
+  function isBareNoteCommand(text){
+    return /^(?:hey\s+)?(?:lucid[\s,:]+)?(?:please\s+)?(?:just\s+)?(?:make|create|add|save|start|write|take|jot(?:\s+down)?|new|quick)?\s*(?:a\s+|an\s+)?(?:quick\s+|new\s+)?note\s*[.!?]*$/i.test((text||"").trim());
   }
   /* Say "just note ..." / "make a note ..." to keep the words as-is, no AI call. */
   function parseNoteCommand(text){
     var t=(text||"").trim();
-    var m=/^(?:hey\s+)?(?:lucid[\s,:]+)?(?:please\s+)?(?:just\s+)?(?:make|create|add|save|start|write|take|jot(?:\s+down)?)\s+(?:a\s+|an\s+)?(?:quick\s+|new\s+)?note\s*(?:that|about|saying|[:,\-\u2014])?\s+(.+)$/i.exec(t);
+    var m=/^(?:hey\s+)?(?:lucid[\s,:]+)?(?:please\s+)?(?:just\s+)?(?:make|create|add|save|start|write|take|jot(?:\s+down)?|new|quick)\s+(?:a\s+|an\s+)?(?:quick\s+|new\s+)?note\s*(?:that|about|saying|[:,\-\u2014])?\s+(.+)$/i.exec(t);
     if(!m)m=/^(?:just\s+note|note\s+this|quick\s+note)[\s,:\-\u2014]+(.+)$/i.exec(t);
     if(!m)m=/^note\s*[:\-\u2014]\s*(.+)$/i.exec(t);
     if(!m)m=/^(?:jot(?:\s+this)?\s+down|write\s+this\s+down|log\s+this|capture\s+this)[\s,:\-\u2014]*(.+)$/i.exec(t);
@@ -1220,6 +1225,45 @@ body{font-family:'Inter',system-ui,sans-serif;background:radial-gradient(130% 55
       .then(function(j){clearTimeout(timer);return j&&j.kind?j:null;})
       .catch(function(err){clearTimeout(timer);console.warn("[sort] falling back to local rules:",err&&err.message);return null;});
   }
+  /* ---- auto-format ----
+     A note captured by voice is one run-on line with filler in it. Claude gives
+     it a real title and a readable body - punctuation, sentence breaks, bullets
+     when they listed things - and adds nothing. It is a tidy-up, not the
+     thinking treatment, so the note stays unexpanded and the Expand button
+     still means what it meant.
+
+     The note is saved first and formatted after, so a slow or failed call costs
+     you a tidier note and never the note itself. */
+  var formatting={},openDetailId=null,rerenderDetail=null;
+  function formatNote(noteId){
+    var n=find(noteId);if(!n||!n.raw)return Promise.resolve();
+    formatting[noteId]=true;
+    var hadTitle=!!(n.userTitle);
+    var ctl=window.AbortController?new AbortController():null;
+    var timer=setTimeout(function(){if(ctl)ctl.abort();},15000);
+    return fetch("/api/format",{method:"POST",headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({raw:n.raw}),signal:ctl?ctl.signal:undefined})
+      .then(function(res){if(!res.ok)throw new Error("format_"+res.status);return res.json();})
+      .then(function(j){
+        clearTimeout(timer);
+        var note=find(noteId);if(!note)return;
+        if(j&&j.body)note.raw=j.body;
+        /* A title they typed themselves is theirs to keep. */
+        if(j&&j.title&&!hadTitle)note.title=j.title;
+        note.formatted=true;
+        saveNotes();
+      })
+      .catch(function(err){
+        clearTimeout(timer);
+        console.warn("[format] note kept as captured:",err&&err.message);
+      })
+      .then(function(){
+        delete formatting[noteId];
+        renderApp();
+        /* Keep an open detail sheet in sync with what just changed underneath it. */
+        if(openDetailId===noteId&&rerenderDetail)rerenderDetail();
+      });
+  }
   /* Turn Gemini's venture pick into an id, creating the business if it is new. */
   function ventureIdFrom(v){
     if(!v||!v.name)return null;
@@ -1235,6 +1279,11 @@ body{font-family:'Inter',system-ui,sans-serif;background:radial-gradient(130% 55
       toast("What's the task?");
       return Promise.resolve();
     }
+    if(isBareNoteCommand(route.text)){
+      closeModals();openNewNote();
+      toast("What's the note?");
+      return Promise.resolve();
+    }
     var quick=parseTaskCommand(route.text);
     if(quick){
       var qr=routeVenture(quick),qid=qr.id||route.id;
@@ -1247,10 +1296,10 @@ body{font-family:'Inter',system-ui,sans-serif;background:radial-gradient(130% 55
     var plain=parseNoteCommand(route.text);
     if(plain){
       var pr=routeVenture(plain),pid=pr.id||route.id;
-      addManualNote("",pr.text,pid);
+      var made=addManualNote("",pr.text,pid);
       closeModals();renderApp();
-      toast("Note saved"+(filedSuffix(pid)||" \u00b7 expand with AI anytime"));
-      return Promise.resolve();
+      toast("Note saved"+filedSuffix(pid));
+      return made?formatNote(made.id):Promise.resolve();
     }
     /* No explicit command - let Gemini say what this is before spending a Claude call. */
     capPhase="refining";refMsg="Sorting\u2026";renderCapture();
@@ -1264,10 +1313,10 @@ body{font-family:'Inter',system-ui,sans-serif;background:radial-gradient(130% 55
       }
       if(s&&s.kind==="note"){
         var nid=route.id||ventureIdFrom(s.venture);
-        addManualNote("",s.text,nid);
+        var mn=addManualNote("",s.text,nid);
         closeModals();renderApp();
-        toast("Note saved"+(filedSuffix(nid)||" \u00b7 expand with AI anytime"));
-        return;
+        toast("Note saved"+filedSuffix(nid));
+        return mn?formatNote(mn.id):undefined;
       }
       return refineThought(raw,route,s);
     });
@@ -1385,7 +1434,7 @@ body{font-family:'Inter',system-ui,sans-serif;background:radial-gradient(130% 55
       +'<div class="cap-type"><input id="nnTitle" class="nn-title" type="text" placeholder="Title (optional)" autocomplete="off" maxlength="70" />'
       +'<textarea id="nnBody" rows="7" placeholder="Write it however you want\u2026"></textarea>'
       +(ventures.length?'<div class="file-row" style="margin-top:14px"><span class="block-label">Business</span><select id="nnV" class="kind-select" style="width:100%;margin-top:6px"><option value="">Unfiled</option>'+ventures.map(function(v){return '<option value="'+v.id+'">'+esc(v.name)+'</option>';}).join("")+'</select></div>':'')
-      +'<div class="type-row"><span class="cap-hint dim" style="font-size:11.5px;margin:0">Saved as-is \u00b7 Sharpen later to add thinking</span><button class="primary-btn" id="nnSave" disabled>'+I.check(15)+'Save</button></div></div>'
+      +'<div class="type-row"><span class="cap-hint dim" style="font-size:11.5px;margin:0">Formatted automatically \u00b7 Expand later to add thinking</span><button class="primary-btn" id="nnSave" disabled>'+I.check(15)+'Save</button></div></div>'
       +'</div></div>';
     document.getElementById("nnSheet").onclick=function(e){e.stopPropagation();};
     document.getElementById("nnScrim").onclick=closeModals;
@@ -1398,7 +1447,7 @@ body{font-family:'Inter',system-ui,sans-serif;background:radial-gradient(130% 55
       var sel=document.getElementById("nnV");
       var made=addManualNote(title.value,body.value,sel?sel.value:null);
       closeModals();renderApp();
-      if(made)toast("Note saved");
+      if(made){toast("Note saved");formatNote(made.id);}
     });
   }
 
@@ -1444,7 +1493,7 @@ body{font-family:'Inter',system-ui,sans-serif;background:radial-gradient(130% 55
         rawBody='<p class="manual-body">'+esc(n.raw)+'</p>';
         /* Only pitch expansion when there is a bet in here to pressure-test. */
         if(looksLikeIdea(n))rawBody+='<div class="expand-cta"><button class="expand-btn" id="expandAI">'+I.spark(16)+'Expand this idea</button><span class="expand-note">Turns it into a thesis, questions that pressure-test it, angles you haven’t tried, and what could go wrong.</span></div>';
-        else rawBody+='<p class="expand-note" style="margin-top:14px">Saved as you said it. Expand below if you want the thinking treatment.</p>';
+        else rawBody+='<p class="expand-note" style="margin-top:14px">Saved and formatted. Expand below if you want the thinking treatment.</p>';
       }
       var pts=n.points&&n.points.length?'<span class="block-label">What you said</span><ul class="points">'+n.points.map(function(p){return '<li><span class="bullet"></span>'+esc(p)+'</li>';}).join("")+'</ul>':"";
       var devs=devSection("Questions to answer",n.questions,"q")+devSection("Angles to consider",n.angles,"a")+devSection("Watch out for",n.risks,"r");
@@ -1528,6 +1577,8 @@ body{font-family:'Inter',system-ui,sans-serif;background:radial-gradient(130% 55
         if(!devBusy&&inp&&(n.thread||[]).length)inp.focus();
       }
     }
+    /* Let background work (auto-format) refresh a sheet that is already open. */
+    openDetailId=id;rerenderDetail=render;
     render();
   }
   function noteToText(n){
@@ -1620,6 +1671,7 @@ body{font-family:'Inter',system-ui,sans-serif;background:radial-gradient(130% 55
         lines.push((h.geminiKeyConfigured?"\u2713":"\u2717")+" Voice transcription key "+(h.geminiKeyConfigured?"configured":"MISSING \u2014 add GEMINI_API_KEY"));
         lines.push((h.keyConfigured?"\u2713":"\u2717")+" AI thinking key "+(h.keyConfigured?"configured":"MISSING \u2014 add ANTHROPIC_API_KEY"));
         if(h.models)lines.push("Voice & sorting \u00b7 "+h.models.transcribe+(h.models.sort&&h.models.sort!==h.models.transcribe?" / "+h.models.sort:""));
+        if(h.models)lines.push("Notes \u00b7 "+(h.models.format||"-"));
         if(h.models)lines.push("Thinking \u00b7 "+h.models.refine);
         out.textContent=lines.join("\n");
       }).catch(function(){out.textContent="Couldn\u2019t reach the server.";});

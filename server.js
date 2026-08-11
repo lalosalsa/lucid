@@ -15,6 +15,7 @@ const express = require("express");
 const { LENSES, MODEL, refine } = require("./lib/refine");
 const { transcribe, GEMINI_MODEL } = require("./lib/transcribe");
 const { sort, SORT_MODEL } = require("./lib/sort");
+const { format, FORMAT_MODEL } = require("./lib/format");
 const { develop } = require("./lib/develop");
 const { standup } = require("./lib/standup");
 const { modelFor, MODE } = require("./lib/model");
@@ -59,6 +60,18 @@ app.post("/api/sort", async (req, res) => {
     console.error("[sort] failed:", (err && err.message) || err);
     // The client falls back to its own rules, so this is never fatal.
     return res.status(502).json({ error: "sort_failed" });
+  }
+});
+
+app.post("/api/format", async (req, res) => {
+  const raw = req.body && typeof req.body.raw === "string" ? req.body.raw.trim() : "";
+  if (!raw) return res.status(400).json({ error: "empty_note" });
+  try {
+    return res.json(await format(raw));
+  } catch (err) {
+    console.error("[format] failed:", (err && err.message) || err);
+    // The note is already saved client-side; it just stays as captured.
+    return res.status(502).json({ error: "format_failed" });
   }
 });
 
@@ -108,6 +121,7 @@ app.get("/api/health", (req, res) => {
     geminiKeyConfigured: hasEnv("GEMINI_API_KEY"),
     costMode: MODE,
     models: {
+      format: modelFor("format"),
       refine: modelFor("refine"),
       develop: modelFor("develop"),
       standup: modelFor("standup"),

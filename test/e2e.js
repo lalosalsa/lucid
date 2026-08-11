@@ -238,6 +238,60 @@ function check(name, ok, extra) {
   await page.locator("#detClose").click();
   await page.waitForTimeout(150);
 
+  // ---- notes are auto-formatted by Claude after they are saved
+  let formatCalls = 0, formatSent = null;
+  await page.route("**/api/format", async (route) => {
+    formatCalls++;
+    try { formatSent = JSON.parse(route.request().postData() || "{}"); } catch (e) { formatSent = null; }
+    await route.fulfill({
+      status: 200, contentType: "application/json",
+      body: JSON.stringify({ title: "Crew start time", body: "The crew starts at seven.\n- Gate code is 4412." }),
+    });
+  });
+  await page.locator("#newNoteBtn").click();
+  await page.waitForTimeout(200);
+  await page.locator("#nnBody").fill("um so the crew starts at seven, you know, and uh the gate code is 4412");
+  await page.waitForTimeout(120);
+  await page.locator("#nnSave").click();
+  await page.waitForTimeout(900);
+  check("note was sent for formatting", formatCalls === 1, "calls: " + formatCalls);
+  check("the captured words were sent, not the title",
+    !!formatSent && /gate code is 4412/.test(formatSent.raw || ""), JSON.stringify(formatSent));
+  const fmtStore = await page.evaluate(() =>
+    (JSON.parse(localStorage.getItem("lucid:notes:v1") || "{}").notes || [])[0]);
+  check("formatted body replaced the raw capture",
+    /The crew starts at seven\./.test(fmtStore.raw || "") && !/um so/.test(fmtStore.raw || ""), JSON.stringify(fmtStore.raw));
+  check("Claude's title was applied", fmtStore.title === "Crew start time", JSON.stringify(fmtStore.title));
+  check("formatting does not expand the note", !fmtStore.thesis && !(fmtStore.points || []).length);
+
+  // a title they typed themselves is theirs to keep
+  await page.locator("#newNoteBtn").click();
+  await page.waitForTimeout(200);
+  await page.locator("#nnTitle").fill("My own title");
+  await page.locator("#nnBody").fill("um the crew starts at seven");
+  await page.waitForTimeout(120);
+  await page.locator("#nnSave").click();
+  await page.waitForTimeout(900);
+  const ownTitle = await page.evaluate(() =>
+    (JSON.parse(localStorage.getItem("lucid:notes:v1") || "{}").notes || [])[0]);
+  check("a title you typed survives formatting", ownTitle.title === "My own title", JSON.stringify(ownTitle.title));
+  check("the body is still formatted", /crew starts at seven\./i.test(ownTitle.raw || ""), JSON.stringify(ownTitle.raw));
+
+  // a formatting failure must never cost the capture
+  await page.unroute("**/api/format");
+  await page.route("**/api/format", (route) =>
+    route.fulfill({ status: 502, contentType: "application/json", body: '{"error":"format_failed"}' }));
+  await page.locator("#newNoteBtn").click();
+  await page.waitForTimeout(200);
+  await page.locator("#nnBody").fill("the fence posts arrive thursday");
+  await page.waitForTimeout(120);
+  await page.locator("#nnSave").click();
+  await page.waitForTimeout(900);
+  const kept = await page.evaluate(() =>
+    (JSON.parse(localStorage.getItem("lucid:notes:v1") || "{}").notes || [])[0]);
+  check("note survives a formatting failure", /fence posts arrive thursday/.test(kept.raw || ""), JSON.stringify(kept.raw));
+  await page.unroute("**/api/format");
+
   // ---- an idea-shaped note DOES get the pitch
   await page.locator("#newNoteBtn").click();
   await page.waitForTimeout(200);

@@ -119,6 +119,16 @@ function check(name, ok, extra) {
   await page.locator('[data-view="library"]').click();
   await page.waitForTimeout(200);
 
+  // --- 3c. "add note" with nothing after it opens the composer
+  transcript = "add note";
+  await page.locator("#fab").click();
+  await page.waitForTimeout(1200);
+  await page.locator("#stopBtn").click();
+  await page.waitForTimeout(2000);
+  check("bare note command opens the composer", await page.locator("#nnBody").isVisible());
+  await page.locator("#nnClose").click();
+  await page.waitForTimeout(200);
+
   // --- 4. spoken "just note" saves raw, without an AI call
   let refineCalled = false;
   await page.route("**/api/refine", async (route) => { refineCalled = true; await route.abort(); });
