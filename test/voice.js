@@ -89,18 +89,33 @@ function check(name, ok, extra) {
   await page.locator("#detClose").click();
   await page.waitForTimeout(200);
 
-  // --- 3. spoken "add task" makes a task, not a note
-  const notesBefore = await page.locator(".card").count();
+  // --- 3. spoken "add task" makes a task, not a note, and lands on Tasks
+  const noteCount = () => page.evaluate(() =>
+    (JSON.parse(localStorage.getItem("lucid:notes:v1") || "{}").notes || []).length);
+  const notesBefore = await noteCount();
   transcript = "add task call the mulch supplier on monday";
   await page.locator("#fab").click();
   await page.waitForTimeout(1200);
   await page.locator("#stopBtn").click();
   await page.waitForTimeout(2000);
-  check("spoken command created no note", (await page.locator(".card").count()) === notesBefore);
-  await page.locator('[data-view="tasks"]').click();
-  await page.waitForTimeout(300);
+  check("spoken command created no note", (await noteCount()) === notesBefore);
+  check("spoken task lands you on the Tasks view",
+    (await page.locator('[data-view="tasks"].on').count()) === 1);
   const tasks = await page.locator(".task-text").allInnerTexts();
   check("spoken command created the task", tasks.some((t) => t.toLowerCase().includes("mulch supplier")), JSON.stringify(tasks));
+  await page.locator('[data-view="library"]').click();
+  await page.waitForTimeout(200);
+
+  // --- 3b. "create task" with nothing after it asks instead of saving junk
+  const before3 = await noteCount();
+  transcript = "create task";
+  await page.locator("#fab").click();
+  await page.waitForTimeout(1200);
+  await page.locator("#stopBtn").click();
+  await page.waitForTimeout(2000);
+  check("bare command saved no stray note", (await noteCount()) === before3);
+  check("bare command opens the task box",
+    await page.evaluate(() => document.activeElement && document.activeElement.id === "newTask"));
   await page.locator('[data-view="library"]').click();
   await page.waitForTimeout(200);
 

@@ -182,7 +182,8 @@ function check(name, ok, extra) {
   await page.waitForTimeout(150);
 
   // ---- 6b. "add task" command creates a task, not a note
-  const notesBefore = await page.locator(".card").count();
+  const notesBefore = await page.evaluate(() =>
+    (JSON.parse(localStorage.getItem("lucid:notes:v1") || "{}").notes || []).length);
   await page.locator("#fab").click();
   await page.waitForTimeout(500);
   const typing = await page.locator("#typed").count();
@@ -191,8 +192,12 @@ function check(name, ok, extra) {
     await page.locator("#typed").fill("add task: order new business cards");
     await page.locator("#refineTyped").click();
     await page.waitForTimeout(500);
-    check("command made no new note", (await page.locator(".card").count()) === notesBefore);
-    await page.locator('[data-view="tasks"]').click();
+    // a task command lands you on Tasks, so count stored notes rather than cards
+    const stored = await page.evaluate(() =>
+      (JSON.parse(localStorage.getItem("lucid:notes:v1") || "{}").notes || []).length);
+    check("command made no new note", stored === notesBefore);
+    check("task command lands on the Tasks view",
+      (await page.locator('[data-view="tasks"].on').count()) === 1);
     await page.waitForTimeout(200);
     const tt = await page.locator(".task-text").allInnerTexts();
     check("command created the task", tt.some((t) => t.toLowerCase().includes("business cards")), JSON.stringify(tt));

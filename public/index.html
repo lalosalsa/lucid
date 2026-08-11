@@ -1121,13 +1121,18 @@ body{font-family:'Inter',system-ui,sans-serif;background:radial-gradient(130% 55
   /* Spoken or typed shortcuts that create a task outright instead of a note. */
   function parseTaskCommand(text){
     var t=(text||"").trim();
-    var m=/^(?:hey\s+)?(?:lucid[\s,:]+)?(?:please\s+)?(?:add|create|make|new|start|set)\s+(?:a\s+|an\s+)?(?:new\s+)?(?:task|to-?do|reminder|action item)\s*(?:that|to|for me to|[:,\-\u2014])?\s+(.+)$/i.exec(t);
+    var m=/^(?:hey\s+)?(?:lucid[\s,:]+)?(?:please\s+)?(?:add|create|make|new|start|set)\s+(?:a\s+|an\s+)?(?:new\s+)?(?:task|to-?do|reminder|action item)\s*(?:that|to|for me to|called|named|saying|[:,\-\u2014])?\s+(.+)$/i.exec(t);
     if(!m)m=/^(?:task|to-?do|reminder|action item)\s*[:,\-\u2014]?\s+(.+)$/i.exec(t);
     if(!m)m=/^(?:remind me to|remember to|note to self[\s,:\-]*|don'?t forget to|make sure (?:i|we) )\s*(.+)$/i.exec(t);
     if(!m)m=/^(?:put|add|throw)\s+(.+?)\s+(?:on|to)\s+(?:my|the|our)\s+(?:to-?do\s+|task\s+)?list\s*[.!]?$/i.exec(t);
     if(!m)return null;
     var body=(m[1]||"").trim().replace(/^[:,\-\u2014\s]+/,"").replace(/[.\s]+$/,"");
     return body?cap(body):null;
+  }
+  /* "Create task" and then nothing - they meant a task, they just did not say
+     which one. Saving that as a note is the one thing they clearly did not want. */
+  function isBareTaskCommand(text){
+    return /^(?:hey\s+)?(?:lucid[\s,:]+)?(?:please\s+)?(?:add|create|make|new|start)\s+(?:a\s+|an\s+)?(?:new\s+)?(?:task|to-?do|reminder|action item)\s*[.!?]*$/i.test((text||"").trim());
   }
   /* Say "just note ..." / "make a note ..." to keep the words as-is, no AI call. */
   function parseNoteCommand(text){
@@ -1202,12 +1207,19 @@ body{font-family:'Inter',system-ui,sans-serif;background:radial-gradient(130% 55
   function finishRefine(raw){
     raw=(raw||"").trim();if(!raw){closeModals();return;}
     var route=routeVenture(raw);
+    if(isBareTaskCommand(route.text)){
+      closeModals();view="tasks";renderApp();
+      var box=document.getElementById("newTask");if(box)box.focus();
+      toast("What's the task?");
+      return Promise.resolve();
+    }
     var quick=parseTaskCommand(route.text);
     if(quick){
       var qr=routeVenture(quick),qid=qr.id||route.id;
       addTask(qr.text,qid);
-      closeModals();renderApp();
-      toast("Task added"+(filedSuffix(qid)||" \u00b7 "+qr.text.slice(0,24)+(qr.text.length>24?"\u2026":"")));
+      /* Land them on the task they just made, so "it went somewhere" is never a question. */
+      closeModals();view="tasks";renderApp();
+      toast("Task added"+filedSuffix(qid));
       return Promise.resolve();
     }
     var plain=parseNoteCommand(route.text);
