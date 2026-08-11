@@ -232,6 +232,8 @@ body{font-family:'Inter',system-ui,sans-serif;background:radial-gradient(130% 55
 .nn-title::placeholder{color:var(--faint);font-weight:500;}
 .meta-raw{font-size:11px;font-weight:600;color:var(--faint);display:flex;align-items:center;gap:6px;}
 .meta-raw::before{content:"";width:5px;height:5px;border-radius:50%;background:var(--faint);}
+.meta-raw.warm{color:var(--accent);}
+.meta-raw.warm::before{background:var(--accent);}
 .sugg-block{border:1px dashed var(--line);background:transparent;}
 .sugg-row{display:flex;align-items:flex-start;gap:10px;padding:9px 0;border-bottom:1px solid var(--line-soft);}
 .sugg-row:last-child{border-bottom:none;}
@@ -890,12 +892,45 @@ body{font-family:'Inter',system-ui,sans-serif;background:radial-gradient(130% 55
     });
   }
   function noteMatches(n,q){var hay=((n.title||"")+" "+(n.thesis||"")+" "+(n.project||"")+" "+ventureLabel(n)+" "+((n.folderId&&folderById(n.folderId))?folderById(n.folderId).name+" ":"")+((n.points||[]).join(" "))+" "+((n.actions||[]).map(function(a){return a.text;}).join(" "))+" "+(n.raw||"")).toLowerCase();return hay.indexOf(q)>=0;}
+  /* ---- what is worth expanding ----
+     Expansion earns its cost on ideas and possible ventures: a thesis,
+     questions, angles and risks only mean something when there is a bet to
+     pressure-test. "Paid the mulch invoice" gets nothing from it. So we only
+     push the button in front of thinking - the quiet Expand button in the
+     action row stays on every note for when this call is wrong. */
+  var IDEA_HINTS=[
+    /\bwhat if\b/i,/\bimagine\b/i,/\b(?:i|we)\s+(?:could|should|might|ought to)\b/i,
+    /\b(?:idea|concept|opportunity|angle|thesis|pitch|vision|play)\b/i,
+    /\b(?:start|launch|build|open|create|spin\s+up|stand\s+up|test)\s+(?:a|an|my|our|the)\b/i,
+    /\bnew\s+(?:business|venture|product|service|line|offering|market|brand|revenue)\b/i,
+    /\b(?:thinking|wondering)\s+(?:about|if|whether)\b/i,
+    /\b(?:maybe|possibly|probably)\s+(?:i|we)\b/i,
+    /\b(?:expand|expanding|move|moving)\s+into\b/i,/\bpivot\b/i,/\bscale\b/i,
+    /\bworth\s+(?:doing|trying|a\b|it\b)/i,/\bpotential\b/i,
+    /\bwould\s+(?:people|customers|clients|they|anyone)\b/i,
+    /\bmarket\s+for\b/i,/\bbusiness\s+model\b/i,/\brevenue\s+stream\b/i,
+    /\b(?:instead of|rather than)\b/i,/\bbet\b/i
+  ];
+  /* Past-tense reporting - something that already happened, nothing to develop. */
+  var LOG_LEAD=/^(?:called|emailed|texted|paid|invoiced|billed|met|shipped|delivered|picked\s+up|dropped\s+off|ordered|booked|sent|filed|signed|renewed|fixed|finished|done|got|received|confirmed)\b/i;
+  function looksLikeIdea(n){
+    var t=((n&&n.raw)||"").trim();
+    if(!t)return false;
+    /* Filed under something they are still exploring - the whole venture is the bet. */
+    var v=n.ventureId?ventureById(n.ventureId):null;
+    if(v&&v.kind==="idea")return true;
+    if(LOG_LEAD.test(t))return false;
+    for(var i=0;i<IDEA_HINTS.length;i++){if(IDEA_HINTS[i].test(t))return true;}
+    var words=t.split(/\s+/).length;
+    if(/\?/.test(t)&&words>=8)return true;   /* they asked themselves something */
+    return words>=40;                         /* a long dump is thinking, not a log */
+  }
   function cardHTML(n,showFolder){
     var oc=(n.actions||[]).filter(function(a){return !a.done;}).length;
     var meta="";
     var qc=(n.questions||[]).length,sc=(n.suggestions||[]).length;
     var isRawCard=!n.thesis&&!(n.points||[]).length;
-    if(showFolder||oc>0||qc>0||sc>0||n.offline||isRawCard){meta='<div class="card-meta">';if(showFolder)meta+='<span class="meta-proj">'+esc(folderName(n))+'</span>';if(oc>0)meta+='<span class="meta-act">'+oc+' open '+(oc===1?"task":"tasks")+'</span>';if(sc>0)meta+='<span class="meta-sugg">'+sc+' suggested</span>';if(qc>0)meta+='<span class="meta-q">'+qc+' '+(qc===1?"question":"questions")+'</span>';if(n.offline)meta+='<span class="meta-quick">quick format</span>';if(!n.thesis&&!(n.points||[]).length)meta+='<span class="meta-raw">not expanded</span>';meta+='</div>';}
+    if(showFolder||oc>0||qc>0||sc>0||n.offline||isRawCard){meta='<div class="card-meta">';if(showFolder)meta+='<span class="meta-proj">'+esc(folderName(n))+'</span>';if(oc>0)meta+='<span class="meta-act">'+oc+' open '+(oc===1?"task":"tasks")+'</span>';if(sc>0)meta+='<span class="meta-sugg">'+sc+' suggested</span>';if(qc>0)meta+='<span class="meta-q">'+qc+' '+(qc===1?"question":"questions")+'</span>';if(n.offline)meta+='<span class="meta-quick">quick format</span>';if(isRawCard)meta+=looksLikeIdea(n)?'<span class="meta-raw warm">worth expanding</span>':'<span class="meta-raw">not expanded</span>';meta+='</div>';}
     return '<div class="card" data-id="'+n.id+'"><div class="card-top"><span class="card-title">'+esc(n.title)+'</span><span class="card-right"><span class="card-time">'+timeAgo(n.createdAt)+'</span><button class="card-play'+(speakingId===n.id?" playing":"")+'" data-play="'+n.id+'" aria-label="Read this note aloud">'+(speakingId===n.id?I.stopc(11):I.play(11))+'</button></span></div>'+((n.thesis||n.raw)?'<p class="card-thesis">'+esc(n.thesis||n.raw)+'</p>':"")+meta+'</div>';
   }
   function mcardHTML(n){
@@ -1345,7 +1380,13 @@ body{font-family:'Inter',system-ui,sans-serif;background:radial-gradient(130% 55
     function render(){
       var n=find(id);if(!n){closeModals();return;}
       var isRaw=!n.thesis&&!(n.points&&n.points.length);
-      var rawBody=isRaw&&n.raw?'<p class="manual-body">'+esc(n.raw)+'</p><div class="expand-cta"><button class="expand-btn" id="expandAI">'+I.spark(16)+'Expand with AI</button><span class="expand-note">Adds a sharpened summary, questions, angles and risks.</span></div>':"";
+      var rawBody="";
+      if(isRaw&&n.raw){
+        rawBody='<p class="manual-body">'+esc(n.raw)+'</p>';
+        /* Only pitch expansion when there is a bet in here to pressure-test. */
+        if(looksLikeIdea(n))rawBody+='<div class="expand-cta"><button class="expand-btn" id="expandAI">'+I.spark(16)+'Expand this idea</button><span class="expand-note">Turns it into a thesis, questions that pressure-test it, angles you haven’t tried, and what could go wrong.</span></div>';
+        else rawBody+='<p class="expand-note" style="margin-top:14px">Saved as you said it. Expand below if you want the thinking treatment.</p>';
+      }
       var pts=n.points&&n.points.length?'<span class="block-label">What you said</span><ul class="points">'+n.points.map(function(p){return '<li><span class="bullet"></span>'+esc(p)+'</li>';}).join("")+'</ul>':"";
       var devs=devSection("Questions to answer",n.questions,"q")+devSection("Angles to consider",n.angles,"a")+devSection("Watch out for",n.risks,"r");
       var rows=(n.actions||[]).map(function(a){

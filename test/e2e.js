@@ -223,8 +223,30 @@ function check(name, ok, extra) {
   await page.waitForTimeout(250);
   const rawBody = await page.locator(".detail-body").innerText();
   check("body shown in full", rawBody.includes("volume pricing"), rawBody.slice(0, 120));
-  check("Expand with AI offered", await page.locator("#expandAI").isVisible());
+  // An operational note has no bet to pressure-test, so expansion is not pitched -
+  // but it stays reachable in the action row.
+  check("no expansion pitch on an operational note", (await page.locator("#expandAI").count()) === 0);
+  check("expand still reachable in the action row",
+    (await page.locator("#sharpen").innerText()).toLowerCase().includes("expand"),
+    await page.locator("#sharpen").innerText());
   check("no redundant raw toggle", (await page.locator("#rawToggle").count()) === 0);
+  await page.locator("#detClose").click();
+  await page.waitForTimeout(150);
+
+  // ---- an idea-shaped note DOES get the pitch
+  await page.locator("#newNoteBtn").click();
+  await page.waitForTimeout(200);
+  await page.locator("#nnTitle").fill("Second yard");
+  await page.locator("#nnBody").fill("Thinking about whether we could open a second yard out in Fayette county. Would customers drive that far?");
+  await page.waitForTimeout(120);
+  await page.locator("#nnSave").click();
+  await page.waitForTimeout(300);
+  const ideaCard = page.locator(".card", { hasText: "Second yard" }).first();
+  check("idea card flagged 'worth expanding'",
+    (await ideaCard.innerText()).toLowerCase().includes("worth expanding"), await ideaCard.innerText());
+  await ideaCard.click();
+  await page.waitForTimeout(250);
+  check("expansion pitched on an idea", await page.locator("#expandAI").isVisible());
   await page.locator("#detClose").click();
   await page.waitForTimeout(150);
 
