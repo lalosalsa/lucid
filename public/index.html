@@ -144,7 +144,7 @@ body{font-family:'Inter',system-ui,sans-serif;background:radial-gradient(130% 55
 .set-main{flex:1;min-width:0;display:flex;flex-direction:column;}
 .set-title{font-size:14.5px;font-weight:600;}
 .set-sub{font-size:12px;color:var(--muted);margin-top:2px;line-height:1.4;}
-.set-note{font-size:12px;color:var(--faint);line-height:1.55;padding:14px 4px 2px;}
+.set-note{font-size:12px;color:var(--faint);line-height:1.55;padding:14px 4px 2px;white-space:pre-line;}
 .expand-row{margin-top:24px;display:flex;gap:8px;}
 .expand-btn{display:flex;align-items:center;justify-content:center;gap:9px;flex:1;padding:13px;cursor:pointer;background:var(--accent-dim);border:1px solid var(--accent-line);color:var(--accent);border-radius:14px;font-size:14.5px;font-weight:600;font-family:'Inter',sans-serif;transition:background .15s;}
 .expand-btn:hover{background:#8f90ff33;}
@@ -1068,8 +1068,15 @@ body{font-family:'Inter',system-ui,sans-serif;background:radial-gradient(130% 55
       return finishRefine(text);
     }).catch(function(err){
       console.error("[capture] failed:",err);
+      var why=err&&err.reason;
       capPhase="type";renderCapture();
-      toast(err&&err.message==="empty_recording"?"No audio captured \u2014 type it":"Couldn\u2019t transcribe \u2014 type it");
+      if(why==="no_key"||why==="bad_key"){
+        toast("Voice needs a Gemini API key \u2014 see Settings");
+      }else if(err&&err.message==="empty_recording"){
+        toast("No audio captured \u2014 try again");
+      }else{
+        toast("Couldn\u2019t transcribe \u2014 type it");
+      }
     });
   }
   /* Spoken or typed shortcuts that create a task outright instead of a note. */
@@ -1125,7 +1132,13 @@ body{font-family:'Inter',system-ui,sans-serif;background:radial-gradient(130% 55
   }
   function transcribeAudio(b64,mime){
     return fetch("/api/transcribe",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({audio:b64,mime:mime||"audio/wav"})})
-    .then(function(res){if(!res.ok)throw new Error("stt_"+res.status);return res.json();})
+    .then(function(res){
+      if(res.ok)return res.json();
+      return res.json().catch(function(){return {};}).then(function(j){
+        var e=new Error((j&&j.error)||("stt_"+res.status));
+        e.reason=(j&&j.error)||"";e.status=res.status;throw e;
+      });
+    })
     .then(function(j){return ((j&&j.text)||"").trim();});
   }
   /* Capture with MediaRecorder (broadly supported), then decode and re-encode
@@ -1426,11 +1439,25 @@ body{font-family:'Inter',system-ui,sans-serif;background:radial-gradient(130% 55
       +'<button class="set-row" id="setBackup"><span class="set-ic">'+I.download(19)+'</span><span class="set-main"><span class="set-title">Back up to a file</span><span class="set-sub">Save all notes, folders and tasks as one file.</span></span></button>'
       +'<button class="set-row" id="setRestore"><span class="set-ic">'+I.upload(19)+'</span><span class="set-main"><span class="set-title">Restore from a file</span><span class="set-sub">Replace everything with a backup you saved.</span></span></button>'
       +'<input type="file" id="setFile" accept="application/json,.json" style="display:none" />'
+      +'<button class="set-row" id="setDiag"><span class="set-ic">'+I.zap(19)+'</span><span class="set-main"><span class="set-title">Check voice &amp; AI setup</span><span class="set-sub">Tests whether the API keys are reaching this deploy.</span></span></button>'
+      +'<p class="set-note" id="diagOut" style="display:none"></p>'
       +'<p class="set-note">Live two-way Google Drive sync needs the app hosted online with sign-in. Until then, a backup file kept in your Drive gives you the same safety net across devices.</p>'
       +'</div></div>';
     document.getElementById("setSheet").onclick=function(e){e.stopPropagation();};
     document.getElementById("setScrim").onclick=closeModals;
     document.getElementById("setClose").onclick=closeModals;
+    var diag=document.getElementById("setDiag");
+    if(diag)diag.onclick=function(){
+      var out=document.getElementById("diagOut");
+      out.style.display="block";out.textContent="Checking\u2026";
+      fetch("/api/health").then(function(r){return r.json();}).then(function(h){
+        var lines=[];
+        lines.push((h.geminiKeyConfigured?"\u2713":"\u2717")+" Voice transcription key "+(h.geminiKeyConfigured?"configured":"MISSING \u2014 add GEMINI_API_KEY"));
+        lines.push((h.keyConfigured?"\u2713":"\u2717")+" AI thinking key "+(h.keyConfigured?"configured":"MISSING \u2014 add ANTHROPIC_API_KEY"));
+        if(h.models)lines.push("Models \u00b7 "+h.models.transcribe+" \u00b7 "+h.models.refine);
+        out.textContent=lines.join("\n");
+      }).catch(function(){out.textContent="Couldn\u2019t reach the server.";});
+    };
     document.getElementById("setBackup").onclick=function(){doBackup();toast("Backup downloaded");};
     document.getElementById("setDrive").onclick=function(){doBackup();try{window.open("https://drive.google.com/drive/my-drive","_blank");}catch(e){}toast("Backup saved \u2014 opening Drive");};
     var file=document.getElementById("setFile");

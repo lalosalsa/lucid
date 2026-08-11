@@ -27,11 +27,22 @@ app.post("/api/transcribe", async (req, res) => {
   const audio = req.body && typeof req.body.audio === "string" ? req.body.audio : "";
   const mime = req.body && typeof req.body.mime === "string" ? req.body.mime : "audio/wav";
   if (!audio) return res.status(400).json({ error: "no_audio" });
+  if (!process.env.GEMINI_API_KEY) {
+    console.error("[transcribe] GEMINI_API_KEY is not set.");
+    return res.status(503).json({ error: "no_key" });
+  }
   try {
     return res.json({ text: await transcribe(audio, mime) });
   } catch (err) {
-    if (err && err.status === 401) console.error("[transcribe] Gemini auth failed — check GEMINI_API_KEY.");
-    else console.error("[transcribe] failed:", (err && err.message) || err);
+    const msg = (err && err.message) || "";
+    const status = err && err.status;
+    // Gemini reports a bad key as 400 INVALID_ARGUMENT, not 401/403.
+    const badKey = status === 401 || status === 403 || /API key not valid|API_KEY_INVALID/i.test(msg);
+    if (badKey) {
+      console.error("[transcribe] Gemini rejected the key - check GEMINI_API_KEY.");
+      return res.status(503).json({ error: "bad_key" });
+    }
+    console.error("[transcribe] failed:", (err && err.message) || err);
     return res.status(502).json({ error: "transcribe_failed" });
   }
 });
