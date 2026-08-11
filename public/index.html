@@ -971,7 +971,11 @@ body{font-family:'Inter',system-ui,sans-serif;background:radial-gradient(130% 55
     var inp=document.getElementById("newTask"),sel=document.getElementById("newTaskV");
     function commit(){
       if(!inp)return;var v=inp.value;if(!v.trim())return;
-      addTask(v,sel?sel.value:null);inp.value="";renderApp();
+      /* Picker wins if they used it; otherwise let the words file it
+         ("call the supplier for Northwind"). */
+      var picked=sel?sel.value:"";
+      var r=picked?{id:picked,text:v.trim()}:routeVenture(v);
+      addTask(r.text,r.id||null);inp.value="";renderApp();
       var again=document.getElementById("newTask");if(again)again.focus();
     }
     tapBtn(document.getElementById("newTaskAdd"),commit);
@@ -1014,7 +1018,7 @@ body{font-family:'Inter',system-ui,sans-serif;background:radial-gradient(130% 55
   function closeModals(){stopSpeaking();stopTimer();if(recorder){try{recorder.cancel();}catch(e){}recorder=null;}document.getElementById("modals").innerHTML="";}
   function renderCapture(){
     var body="";
-    if(capPhase==="idle"){body='<div class="cap-idle"><button class="rec-btn" id="recBtn">'+I.mic(30)+'</button><p class="cap-hint">Tap and start talking</p><p class="cap-hint dim" style="margin-top:8px;font-size:12px">Say \u201cadd task\u2026\u201d for a to-do, or \u201cjust note\u2026\u201d to save your words as-is</p><button class="text-alt" id="toType">'+I.keyboard(14)+'Type instead</button></div>';}
+    if(capPhase==="idle"){body='<div class="cap-idle"><button class="rec-btn" id="recBtn">'+I.mic(30)+'</button><p class="cap-hint">Tap and start talking</p><p class="cap-hint dim" style="margin-top:8px;font-size:12px">Say \u201cadd task\u2026\u201d for a to-do, \u201cjust note\u2026\u201d to save your words as-is, or name a business (\u201cfor Northwind\u2026\u201d) to file it there</p><button class="text-alt" id="toType">'+I.keyboard(14)+'Type instead</button></div>';}
     else if(capPhase==="listening"){body='<div class="cap-live"><div class="live-transcript" id="liveT" style="display:flex;align-items:center;justify-content:center"><p style="text-align:center"><span class="ghost">Listening\u2026 speak now.</span><br><span id="recTime" style="font-family:\'JetBrains Mono\',monospace;font-size:15px;color:var(--accent)">0:00</span></p></div><div class="bars">'+bars()+'</div><button class="stop-btn" id="stopBtn">'+I.square(16)+'Stop &amp; refine</button></div>';}
     else if(capPhase==="type"){body='<div class="cap-type"><textarea id="typed" rows="5" placeholder="Dump the rough thought here\u2026 (or \u201cadd task: call the supplier\u201d)"></textarea><div class="type-row">'+(CANREC?'<button class="text-alt" id="toVoice">'+I.mic(14)+'Use voice</button>':'<span></span>')+'<span style="display:flex;gap:7px;align-items:center;margin-left:auto"><button class="pill-btn ghost" id="saveRaw" disabled>Save as-is</button><button class="primary-btn" id="refineTyped" disabled style="margin-left:0">'+I.spark(15)+'Refine</button></span></div></div>';}
     else if(capPhase==="refining"){body='<div class="cap-refining"><div class="orbit">'+I.spark(22)+'</div><div class="refine-lines"><div class="shimmer-line"></div><div class="shimmer-line"></div><div class="shimmer-line short"></div></div><p class="cap-hint dim">'+esc(refMsg||"Structuring your thought\u2026")+'</p></div>';}
@@ -1082,8 +1086,10 @@ body{font-family:'Inter',system-ui,sans-serif;background:radial-gradient(130% 55
   /* Spoken or typed shortcuts that create a task outright instead of a note. */
   function parseTaskCommand(text){
     var t=(text||"").trim();
-    var m=/^(?:hey\s+)?(?:lucid[\s,:]+)?(?:please\s+)?(?:add|create|make|new)\s+(?:a\s+|an\s+)?(?:new\s+)?(?:task|to-?do|reminder)\s*(?:that|to|[:,\-\u2014])?\s+(.+)$/i.exec(t);
-    if(!m)m=/^(?:remind me to|remember to|note to self[\s,:\-]*)\s*(.+)$/i.exec(t);
+    var m=/^(?:hey\s+)?(?:lucid[\s,:]+)?(?:please\s+)?(?:add|create|make|new|start|set)\s+(?:a\s+|an\s+)?(?:new\s+)?(?:task|to-?do|reminder|action item)\s*(?:that|to|for me to|[:,\-\u2014])?\s+(.+)$/i.exec(t);
+    if(!m)m=/^(?:task|to-?do|reminder|action item)\s*[:,\-\u2014]?\s+(.+)$/i.exec(t);
+    if(!m)m=/^(?:remind me to|remember to|note to self[\s,:\-]*|don'?t forget to|make sure (?:i|we) )\s*(.+)$/i.exec(t);
+    if(!m)m=/^(?:put|add|throw)\s+(.+?)\s+(?:on|to)\s+(?:my|the|our)\s+(?:to-?do\s+|task\s+)?list\s*[.!]?$/i.exec(t);
     if(!m)return null;
     var body=(m[1]||"").trim().replace(/^[:,\-\u2014\s]+/,"").replace(/[.\s]+$/,"");
     return body?cap(body):null;
@@ -1093,31 +1099,88 @@ body{font-family:'Inter',system-ui,sans-serif;background:radial-gradient(130% 55
     var t=(text||"").trim();
     var m=/^(?:hey\s+)?(?:lucid[\s,:]+)?(?:please\s+)?(?:just\s+)?(?:make|create|add|save|start|write|take|jot(?:\s+down)?)\s+(?:a\s+|an\s+)?(?:quick\s+|new\s+)?note\s*(?:that|about|saying|[:,\-\u2014])?\s+(.+)$/i.exec(t);
     if(!m)m=/^(?:just\s+note|note\s+this|quick\s+note)[\s,:\-\u2014]+(.+)$/i.exec(t);
+    if(!m)m=/^note\s*[:\-\u2014]\s*(.+)$/i.exec(t);
+    if(!m)m=/^(?:jot(?:\s+this)?\s+down|write\s+this\s+down|log\s+this|capture\s+this)[\s,:\-\u2014]*(.+)$/i.exec(t);
     if(!m)return null;
     var body=(m[1]||"").trim().replace(/^[:,\-\u2014\s]+/,"");
     return body||null;
   }
-  /* If they named one of their businesses, file the task there. */
-  function guessVenture(text){
-    var low=(" "+text+" ").toLowerCase(),hit=null;
-    ventures.forEach(function(v){
-      var name=v.name.toLowerCase();
-      if(name.length>2&&low.indexOf(name)>=0&&(!hit||name.length>hit.name.length))hit=v;
-    });
-    return hit?hit.id:null;
+
+  /* ---- spoken routing ----
+     "for Northwind, add a task to call the supplier", "add task call the supplier
+     for Northwind", "Northwind: the truck lease is up". When they name a business
+     with a routing phrase we file it there AND strip the phrase, so the business
+     name doesn't end up inside the task text. A bare mention still files it, but
+     leaves the words alone. */
+  var VCUE="(?:for|under|on|re|regarding|about|over\\s+at|with)";
+  var VTAIL="(?:\\s+(?:side|project|business|account|venture|stuff))?";
+  function reEsc(s){return String(s).replace(/[.*+?^${}()|[\]\\]/g,"\\$&");}
+  /* Match the name as spoken and as a bare core ("Northwind Farms LLC" -> "Northwind Farms"). */
+  function ventureForms(v){
+    var n=(v.name||"").trim(),out=[];
+    if(n)out.push(n);
+    var core=n.replace(/[^\w\s'&-]/g," ")
+      .replace(/\b(?:the|llc|inc|incorporated|co|corp|corporation|company|ltd|group)\b/gi," ")
+      .replace(/\s+/g," ").trim();
+    if(core&&core.toLowerCase()!==n.toLowerCase())out.push(core);
+    /* Nobody says "Northwind Farms LLC" out loud - they say "Northwind". */
+    var first=(core||n).split(/\s+/)[0]||"";
+    if(first.length>=4&&first.toLowerCase()!==(core||n).toLowerCase())out.push(first);
+    return out.filter(function(f){return f.length>=3;});
+  }
+  function formRe(form){return reEsc(form).replace(/\s+/g,"\\s+");}
+  /* Longest form first, so "Northwind Farms" wins over "Northwind". A short form
+     shared by two businesses is ambiguous, so drop it rather than guess. */
+  function ventureCandidates(){
+    var all=[],seen={};
+    ventures.forEach(function(v){ventureForms(v).forEach(function(f){
+      var k=f.toLowerCase();
+      if(!seen[k])seen[k]=[];
+      if(seen[k].indexOf(v.id)<0)seen[k].push(v.id);
+      all.push({v:v,f:f});
+    });});
+    var out=all.filter(function(c){return seen[c.f.toLowerCase()].length===1;});
+    out.sort(function(a,b){return b.f.length-a.f.length;});
+    return out;
+  }
+  function routeVenture(text){
+    var t=(text||"").trim();
+    if(!t||!ventures.length)return {id:null,text:t};
+    var cands=ventureCandidates(),i,c,n,m;
+    for(i=0;i<cands.length;i++){
+      c=cands[i];n=formRe(c.f);
+      m=new RegExp("^"+VCUE+"\\s+(?:the\\s+)?"+n+VTAIL+"\\s*[:,\\-\\u2014]?\\s+(?:(?:to|that)\\s+)?(.+)$","i").exec(t);
+      if(!m)m=new RegExp("^"+n+VTAIL+"\\s*[:\\-\\u2014]\\s*(.+)$","i").exec(t);
+      if(m&&m[1].trim())return {id:c.v.id,text:m[1].trim()};
+      m=new RegExp("^(.+?)[\\s,\\-\\u2014]+"+VCUE+"\\s+(?:the\\s+)?"+n+VTAIL+"\\s*[.!?]*$","i").exec(t);
+      if(m&&m[1].trim())return {id:c.v.id,text:m[1].trim()};
+    }
+    for(i=0;i<cands.length;i++){
+      if(new RegExp("(^|[^\\w])"+formRe(cands[i].f)+"([^\\w]|$)","i").test(t))return {id:cands[i].v.id,text:t};
+    }
+    return {id:null,text:t};
+  }
+  function filedSuffix(id){
+    var v=id?ventureById(id):null;
+    return v?" \u00b7 "+v.name:"";
   }
   function finishRefine(raw){
     raw=(raw||"").trim();if(!raw){closeModals();return;}
-    var quick=parseTaskCommand(raw);
+    var route=routeVenture(raw);
+    var quick=parseTaskCommand(route.text);
     if(quick){
-      addTask(quick,guessVenture(raw));
-      closeModals();renderApp();toast("Task added \u00b7 "+quick.slice(0,28)+(quick.length>28?"\u2026":""));
+      var qr=routeVenture(quick),qid=qr.id||route.id;
+      addTask(qr.text,qid);
+      closeModals();renderApp();
+      toast("Task added"+(filedSuffix(qid)||" \u00b7 "+qr.text.slice(0,24)+(qr.text.length>24?"\u2026":"")));
       return Promise.resolve();
     }
-    var plain=parseNoteCommand(raw);
+    var plain=parseNoteCommand(route.text);
     if(plain){
-      addManualNote("",plain,guessVenture(raw));
-      closeModals();renderApp();toast("Note saved \u00b7 expand with AI anytime");
+      var pr=routeVenture(plain),pid=pr.id||route.id;
+      addManualNote("",pr.text,pid);
+      closeModals();renderApp();
+      toast("Note saved"+(filedSuffix(pid)||" \u00b7 expand with AI anytime"));
       return Promise.resolve();
     }
     capPhase="refining";if(!refMsg)refMsg="Structuring your thought\u2026";renderCapture();
@@ -1125,6 +1188,8 @@ body{font-family:'Inter',system-ui,sans-serif;background:radial-gradient(130% 55
       var note={id:"n_"+Date.now(),createdAt:Date.now(),lens:lens,raw:raw};
       for(var k in r){note[k]=r[k];}
       assignVenture(note,r.venture);delete note.venture;
+      /* Naming a business out loud beats the model's guess. */
+      if(route.id&&ventureById(route.id))note.ventureId=route.id;
       normNote(note);
       notes.unshift(note);manualOrder.unshift(note.id);saveNotes();renderApp();closeModals();
       toast(note.offline?"Saved \u00b7 quick format":"Refined & saved");

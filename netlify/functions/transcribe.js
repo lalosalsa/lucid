@@ -6,6 +6,7 @@
  */
 
 const { transcribe } = require("../../lib/transcribe");
+const { hasEnv } = require("../../lib/env");
 
 function json(statusCode, obj) {
   return {
@@ -29,7 +30,7 @@ exports.handler = async (event) => {
   const mime = typeof body.mime === "string" ? body.mime : "audio/wav";
   if (!audio) return json(400, { error: "no_audio" });
 
-  if (!process.env.GEMINI_API_KEY) {
+  if (!hasEnv("GEMINI_API_KEY")) {
     console.error("[transcribe] GEMINI_API_KEY is not set on this deploy.");
     return json(503, { error: "no_key" });
   }

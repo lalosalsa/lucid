@@ -118,6 +118,65 @@ function check(name, ok, extra) {
   const snippets = await page.locator(".card-thesis").allInnerTexts();
   check("raw note keeps the spoken words", snippets.some((t) => t.includes("truck lease")), JSON.stringify(snippets));
 
+  // --- 5. spoken phrases file the item under the right business
+  await page.addInitScript(() => {
+    localStorage.setItem("lucid:notes:v1", JSON.stringify({
+      notes: [], folders: [], tasks: [], standups: {}, manualOrder: [], sortMode: "newest",
+      ventures: [{ id: "v_nw", name: "Northwind Farms LLC", kind: "running", createdAt: 1 },
+                 { id: "v_hb", name: "Harbor", kind: "idea", createdAt: 2 }],
+    }));
+  });
+  await page.reload({ waitUntil: "networkidle" });
+
+  const store = () => page.evaluate(() => JSON.parse(localStorage.getItem("lucid:notes:v1") || "{}"));
+  async function speak(text, ms) {
+    transcript = text;
+    await page.locator("#fab").click();
+    await page.waitForTimeout(1200);
+    await page.locator("#stopBtn").click();
+    await page.waitForTimeout(ms || 2000);
+  }
+
+  // trailing cue, with the legal suffix dropped the way people actually talk
+  await speak("add task call the mulch supplier for Northwind");
+  let s = await store();
+  let t0 = s.tasks[0] || {};
+  check("spoken task filed under the named business", t0.ventureId === "v_nw", JSON.stringify(t0));
+  check("business name stripped from the task text", /^Call the mulch supplier$/i.test(t0.text || ""), JSON.stringify(t0.text));
+
+  // leading cue, wrapping a note command
+  await speak("for Harbor just note the truck lease is up in august");
+  s = await store();
+  let n0 = s.notes[0] || {};
+  check("spoken note filed under the named business", n0.ventureId === "v_hb", JSON.stringify(n0.ventureId));
+  check("cue phrase stripped from the note body", /^the truck lease is up in august$/i.test(n0.raw || ""), JSON.stringify(n0.raw));
+
+  // colon form
+  await speak("Northwind Farms LLC: task order more fencing");
+  s = await store();
+  t0 = s.tasks[0] || {};
+  check("colon form routes and strips", t0.ventureId === "v_nw" && /^Order more fencing$/i.test(t0.text || ""), JSON.stringify(t0));
+
+  // a bare mention still files it, but must not mangle the words
+  await speak("add task email Harbor investors the deck");
+  s = await store();
+  t0 = s.tasks[0] || {};
+  check("bare mention files without rewriting", t0.ventureId === "v_hb" && /^Email Harbor investors the deck$/i.test(t0.text || ""), JSON.stringify(t0));
+
+  // --- 6. typed tasks route by phrase too, and group under the business
+  await page.locator('[data-view="tasks"]').click();
+  await page.waitForTimeout(300);
+  await page.locator("#newTask").fill("call the vet for Northwind");
+  await page.locator("#newTaskAdd").click();
+  await page.waitForTimeout(400);
+  s = await store();
+  const typed = (s.tasks || []).filter((t) => /vet/i.test(t.text))[0] || {};
+  check("typed task routes by phrase", typed.ventureId === "v_nw" && /^call the vet$/i.test(typed.text || ""), JSON.stringify(typed));
+  const groups = await page.locator(".grp-name").allInnerTexts();
+  // the group heading is uppercased by CSS, so compare case-insensitively
+  check("tasks group under the business name",
+    groups.some((g) => g.toLowerCase() === "northwind farms llc"), JSON.stringify(groups));
+
   await browser.close();
   console.log("\n  " + pass + " passed, " + fail + " failed");
   if (errors.length) { console.log("\n  JS ERRORS:"); errors.forEach((e) => console.log("   - " + e)); }

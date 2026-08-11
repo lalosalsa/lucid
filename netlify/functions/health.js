@@ -1,6 +1,7 @@
 "use strict";
 
 const { modelFor, MODE } = require("../../lib/model");
+const { env, hasEnv } = require("../../lib/env");
 
 // Netlify function backing GET /api/health - which keys and models are live.
 exports.handler = async () => ({
@@ -8,14 +9,14 @@ exports.handler = async () => ({
   headers: { "Content-Type": "application/json" },
   body: JSON.stringify({
     ok: true,
-    keyConfigured: !!process.env.ANTHROPIC_API_KEY,
-    geminiKeyConfigured: !!process.env.GEMINI_API_KEY,
+    keyConfigured: hasEnv("ANTHROPIC_API_KEY"),
+    geminiKeyConfigured: hasEnv("GEMINI_API_KEY"),
     costMode: MODE,
     models: {
       refine: modelFor("refine"),
       develop: modelFor("develop"),
       standup: modelFor("standup"),
-      transcribe: process.env.GEMINI_MODEL || "gemini-2.5-flash",
+      transcribe: env("GEMINI_MODEL", "gemini-2.5-flash"),
     },
   }),
 });

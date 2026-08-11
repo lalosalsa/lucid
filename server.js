@@ -17,6 +17,7 @@ const { transcribe, GEMINI_MODEL } = require("./lib/transcribe");
 const { develop } = require("./lib/develop");
 const { standup } = require("./lib/standup");
 const { modelFor, MODE } = require("./lib/model");
+const { env, hasEnv } = require("./lib/env");
 
 const app = express();
 // Audio (base64 WAV) can be a few MB; give the body parser room.
@@ -27,7 +28,7 @@ app.post("/api/transcribe", async (req, res) => {
   const audio = req.body && typeof req.body.audio === "string" ? req.body.audio : "";
   const mime = req.body && typeof req.body.mime === "string" ? req.body.mime : "audio/wav";
   if (!audio) return res.status(400).json({ error: "no_audio" });
-  if (!process.env.GEMINI_API_KEY) {
+  if (!hasEnv("GEMINI_API_KEY")) {
     console.error("[transcribe] GEMINI_API_KEY is not set.");
     return res.status(503).json({ error: "no_key" });
   }
@@ -89,8 +90,8 @@ app.post("/api/standup", async (req, res) => {
 app.get("/api/health", (req, res) => {
   res.json({
     ok: true,
-    keyConfigured: !!process.env.ANTHROPIC_API_KEY,
-    geminiKeyConfigured: !!process.env.GEMINI_API_KEY,
+    keyConfigured: hasEnv("ANTHROPIC_API_KEY"),
+    geminiKeyConfigured: hasEnv("GEMINI_API_KEY"),
     costMode: MODE,
     models: {
       refine: modelFor("refine"),
@@ -104,7 +105,7 @@ app.get("/api/health", (req, res) => {
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(`Lucid Notes running at http://localhost:${PORT}`);
-  if (!process.env.ANTHROPIC_API_KEY) {
+  if (!hasEnv("ANTHROPIC_API_KEY")) {
     console.warn("WARNING: ANTHROPIC_API_KEY is not set — AI refinement will fail and the app will fall back to local quick-format. Copy .env.example to .env and add your key.");
   }
 });
